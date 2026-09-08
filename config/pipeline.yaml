@@ -1,0 +1,24 @@
+backend: auto
+confidence_threshold: 0.75
+phi_action: tag
+gliner25_model: fastino/gliner2.5-small-v1
+gliner_spacy_model: urchade/gliner_medium-v2.1
+pii_model: fastino/gliner2-privacy-filter-PII-multi
+pipeline_version: 0.1.0-cascaded
+clinical_labels:
+  - Patient
+  - Condition
+  - Medication
+  - Laboratory_Test
+  - Laboratory_Result
+  - Anatomy
+  - Procedure
+  - Provider
+relation_types:
+  - HAS_CONDITION
+  - TAKES
+  - TREATS
+  - HAS_VALUE
+  - INDICATES
+  - PERFORMED
+  - HAS_ANATOMICAL_SITE

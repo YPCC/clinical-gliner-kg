@@ -1,0 +1,11 @@
+# Full showcase stack. Heavy: first use downloads model weights.
+pydantic>=2.6.0
+pyyaml>=6.0.1
+rich>=13.7.0
+spacy>=3.7.4
+gliner>=0.2.8
+gliner-spacy>=0.0.8
+gliner2[local]>=0.1.0
+spacy-llm>=0.7.2
+networkx>=3.2.1
+rdflib>=7.0.0

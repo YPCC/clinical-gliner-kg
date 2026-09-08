@@ -1,0 +1,20 @@
+{
+  "allowed_relations": {
+    "TREATS": [{"subject": "Medication", "object": "Condition"}],
+    "HAS_CONDITION": [{"subject": "Patient", "object": "Condition"}],
+    "TAKES": [{"subject": "Patient", "object": "Medication"}],
+    "HAS_VALUE": [{"subject": "Laboratory_Test", "object": "Laboratory_Result"}],
+    "INDICATES": [
+      {"subject": "Laboratory_Result", "object": "Condition"},
+      {"subject": "Laboratory_Test", "object": "Condition"}
+    ],
+    "PERFORMED": [{"subject": "Provider", "object": "Procedure"}],
+    "HAS_ANATOMICAL_SITE": [
+      {"subject": "Condition", "object": "Anatomy"},
+      {"subject": "Procedure", "object": "Anatomy"}
+    ]
+  },
+  "forbidden_domain_range": [
+    {"subject": "Medication", "relation": "HAS_ANATOMICAL_SITE", "object": "Anatomy"}
+  ]
+}

@@ -1,0 +1,102 @@
+# Curated subset of https://github.com/YPCC/medical-data for this showcase.
+# The parent catalog is an index, not a redistribution point.
+
+catalog: https://github.com/YPCC/medical-data
+policy: >
+  Bundle only synthetic notes in this repository. Open literature corpora may be
+  downloaded by the user. DUA clinical notes (n2c2, i2b2, MIMIC) must never be
+  committed to git.
+
+datasets:
+  - name: NCBI Disease Corpus
+    task: [ner, normalization]
+    access: open
+    url: https://www.ncbi.nlm.nih.gov/research/bionlp/Data/disease/
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/named-entity-recognition.md
+    notes: 793 PubMed abstracts, disease mentions linked to MeSH/OMIM.
+    use_in_this_repo: optional-download
+
+  - name: BC5CDR
+    task: [ner, relation-extraction]
+    access: open
+    url: https://biocreative.bioinformatics.udel.edu/tasks/biocreative-v/track-3-cdr/
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/named-entity-recognition.md
+    notes: Chemicals, diseases, and chemical-disease relations in 1,500 abstracts.
+    use_in_this_repo: optional-download
+
+  - name: BioRED
+    task: [ner, relation-extraction, triple-extraction]
+    access: open
+    url: https://ftp.ncbi.nlm.nih.gov/pub/lu/BC8-BioRED-track/
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/knowledge-extraction.md
+    notes: Document-level biomedical relations with entity normalization.
+    use_in_this_repo: catalog-pointer
+
+  - name: ChemProt
+    task: [relation-extraction]
+    access: open
+    url: https://biocreative.bioinformatics.udel.edu/
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/knowledge-extraction.md
+    use_in_this_repo: catalog-pointer
+
+  - name: ADE Corpus
+    task: [relation-extraction]
+    access: open
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/knowledge-extraction.md
+    use_in_this_repo: catalog-pointer
+
+  - name: ASQ-PHI
+    task: [de-identification]
+    access: open
+    license: MIT
+    url: https://data.mendeley.com/datasets/csz5dzp7nx/1
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/named-entity-recognition.md
+    notes: Synthetic adversarial PHI benchmark.
+    use_in_this_repo: recommended-open-phi
+
+  - name: Bundled synthetic clinical notes
+    task: [ner, relation-extraction, kg-construction]
+    access: open
+    license: Apache-2.0
+    path: data/synthetic/clinical_notes.jsonl
+    use_in_this_repo: default-benchmark
+
+  - name: Bundled synthetic PHI notes
+    task: [de-identification]
+    access: open
+    license: Apache-2.0
+    path: data/synthetic/phi_notes.jsonl
+    use_in_this_repo: default-phi-benchmark
+
+  - name: i2b2 2010 Concepts, Assertions & Relations
+    task: [ner, assertion, relation-extraction]
+    access: dua
+    url: https://n2c2.dbmi.hms.harvard.edu/data-sets
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/benchmarks/n2c2-i2b2.md
+    use_in_this_repo: do-not-redistribute
+
+  - name: n2c2 2018 Track 2 ADE & Medication
+    task: [ner, relation-extraction]
+    access: dua
+    url: https://n2c2.dbmi.hms.harvard.edu/
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/benchmarks/n2c2-i2b2.md
+    use_in_this_repo: do-not-redistribute
+
+  - name: n2c2 / i2b2 de-identification corpora
+    task: [de-identification]
+    access: dua
+    url: https://n2c2.dbmi.hms.harvard.edu/data-sets
+    use_in_this_repo: do-not-redistribute
+
+  - name: MIMIC-III / MIMIC-IV
+    task: [clinical-notes, de-identification]
+    access: dua
+    url: https://physionet.org/
+    use_in_this_repo: do-not-redistribute
+
+  - name: PrimeKG
+    task: [kg-completion]
+    access: open
+    url: https://github.com/mims-harvard/PrimeKG
+    catalog_page: https://github.com/YPCC/medical-data/blob/master/datasets/biomedical-nlp/knowledge-extraction.md
+    use_in_this_repo: catalog-pointer
