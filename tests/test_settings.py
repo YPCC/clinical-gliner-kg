@@ -136,3 +136,23 @@ def test_google_adjudicator_uses_compat_client(monkeypatch):
     assert out[0].confidence == 0.4
     assert "generativelanguage.googleapis.com" in calls["base_url"]
     assert calls["model"] == "gemini-2.0-flash"
+
+
+def test_llm_caution_is_needs_review_not_accept(monkeypatch):
+    from clinical_gliner_kg.components.llm_adjudicator import LLMAdjudicator
+    from clinical_gliner_kg.models import ClinicalEntity, ClinicalRelation, ValidationStatus
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        "clinical_gliner_kg.components.llm_adjudicator.chat_complete",
+        lambda **kwargs: "CAUTION maybe",
+    )
+    adj = LLMAdjudicator(provider="openai", enable_spacy_llm=True)
+    adj._nlp = None
+    subj = ClinicalEntity(id="s", text="HbA1c", label="Laboratory_Test", start_char=0, end_char=5, confidence=0.9)
+    obj = ClinicalEntity(id="o", text="diabetes", label="Condition", start_char=10, end_char=18, confidence=0.9)
+    rel = ClinicalRelation(subject_id="s", relation="INDICATES", object_id="o", confidence=0.4)
+    out = adj.adjudicate_relations([rel], {"s": subj, "o": obj}, [(True, "Valid domain-range alignment")])
+    assert out[0].validation_status == ValidationStatus.NEEDS_REVIEW
+    assert out[0].confidence == 0.4
+    assert "CAUTION" in (out[0].validation_comment or "")

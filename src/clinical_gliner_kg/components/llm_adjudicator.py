@@ -195,6 +195,11 @@ class LLMAdjudicator:
             rel.validation_comment = f"{note}LLM accepted ({reason})"
             rel.history.append(DecisionEvent(actor="llm", decision="LLM_VALIDATED", comment=rel.validation_comment, model=rel.adjudication_model))
             return rel
+        if verdict == "CAUTION":
+            rel.validation_status = ValidationStatus.NEEDS_REVIEW
+            rel.validation_comment = f"{note}LLM returned CAUTION ({reason})"
+            rel.history.append(DecisionEvent(actor="llm", decision="NEEDS_REVIEW", comment=rel.validation_comment, model=rel.adjudication_model))
+            return rel
         rel.validation_status = ValidationStatus.NEEDS_REVIEW
         rel.validation_comment = f"{note}LLM unavailable or inconclusive ({reason})"
         rel.history.append(DecisionEvent(actor="llm", decision="NEEDS_REVIEW", comment=rel.validation_comment, model=rel.adjudication_model))
@@ -233,5 +238,5 @@ class LLMAdjudicator:
             return None
         token = content.split()[0].upper().strip(".,:; ") if content else ""
         if token in {"ACCEPT", "REJECT", "CAUTION"}:
-            return "ACCEPT" if token == "CAUTION" else token
+            return token
         return None

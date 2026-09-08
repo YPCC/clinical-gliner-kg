@@ -8,7 +8,7 @@ Cascaded clinical extraction plane:
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Docs:** [overview](docs/overview.md) · [configuration](docs/configuration.md) · [C4](docs/c4/README.md) · [architecture](docs/architecture.md) · [next steps](docs/next-steps.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md)
+**Docs:** [status / next](docs/next-steps.md) · [overview](docs/overview.md) · [configuration](docs/configuration.md) · [C4](docs/c4/README.md) · [architecture](docs/architecture.md) · [graph LPG/RDFS](docs/graph.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md)
 
 ---
 

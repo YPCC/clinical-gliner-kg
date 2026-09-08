@@ -1,93 +1,124 @@
-# Next steps — make the implementation match the architecture
+# Status and next steps
 
-Review of the repo against the README (technical spike, not a production clinical platform). This file is the working backlog. Items marked **done in this pass** are already in `main`.
+Working backlog after the **2026-09-08** architecture review. Research / reference control plane, not enterprise production (~8/10 as a spike, ~5/10 as a deployable clinical system).
 
-## What we agreed the system *is*
+Thesis to preserve:
 
-A **semantic extraction control plane**:
+**GLiNER sensing → PHI policy → terminology grounding → semantic validation → confidence routing → selective LLM adjudication → provenance-bearing assertions → LPG/RDF healthcare KG**
 
-GLiNER high-recall sensing → PHI gate → terminology grounding → **schema** (domain-range) validation → confidence router → **selective** LLM adjudication → provenance-bearing assertions → Healthcare KG artifacts.
-
-It is **not** “another BioBERT” and not a certified PHI / HIPAA product.
-
-C4 views: [c4/context.md](c4/context.md) · [c4/container.md](c4/container.md) · [c4/system.md](c4/system.md).
+The differentiator is **governance of semantic assertions**, not GLiNER itself.
 
 ---
 
-## P0 — correctness (done this pass)
+## Shipped
 
-These were creating false confidence in the graph.
+### P0 — false confidence (done)
 
-| Review item | Change |
+| Was | Now |
 |---|---|
-| LLM `_arbitrate()` was hard-coded rules + confidence bump | Forbidden schema pairs → `REJECTED` with **original** confidence. Ambiguous + no LLM → `NEEDS_REVIEW`. Ambiguous + LLM → `LLM_VALIDATED` / `LLM_REJECTED`. **Never** raise confidence just because a function ran. |
-| Entities auto-`VALIDATED` even when unlinked | Catalog/OAK hit → `LINKED` (+ `linking_confidence`). Miss → `UNLINKED`. Extraction score stays on `confidence`. |
-| RelEx `_nearest()` first surface string | Bind by **span identity**, then overlap, then unique surface, then closest offset. Repeated “metformin” no longer always attaches to the first mention. |
-| PHI `str.replace` + no dedupe | Overlap merge; mask **right-to-left by offsets**. |
-| Cypher could `MATCH` a suppressed PHI node | Emitter requires both endpoints in the non-PHI id set. |
-| README over-claimed streaming / OWL / LLM | Wording tightened; C4 marks planned vs implemented. |
+| Heuristic “adjudication” + confidence bump | Real LLM or `NEEDS_REVIEW`; original score kept |
+| Unlinked entity → `VALIDATED` | `LINKED` / `UNLINKED` |
+| RelEx first surface string | Span identity (`tests/data/relex_spans.json`) |
+| PHI `str.replace` | Offset mask + overlap merge |
+| Cypher to PHI nodes | Both endpoints must be non-PHI |
+| README over-claim | Streaming / OWL / LLM / PHI wording is honest |
 
-New statuses: `LINKED`, `UNLINKED`, `NEEDS_REVIEW`, `LLM_VALIDATED`, `LLM_REJECTED`. `ADJUDICATED` is legacy and no longer written.
+LLM tokens: `ACCEPT` → `LLM_VALIDATED`, `REJECT` → `LLM_REJECTED`, **`CAUTION` → `NEEDS_REVIEW`** (not accept).
 
----
+### P1 — control-plane foundations (done)
 
-## P1 — make the spike robust (this pass)
-
-| Item | State |
+| Item | Where |
 |---|---|
-| Assertion-level PROV + decision history + terminology version | **Done** (`DecisionEvent`, `clin:Assertion`, catalog `version`) |
-| RelEx span goldens | **Done** (`tests/data/relex_spans.json`) |
-| CI-fast vs CI-integration | **Done** (`.github/workflows/ci.yml` heuristic; `ci-integration.yml` RDF goldens + nightly GLiNER 2.5-small) |
-| EventEnvelope + JSONL idempotent upsert | **Done** (`examples/run_stream_jsonl.py`) |
-| RDFS KG via rdflib + PyLD + SPARQL | **Done** (`graph.target: lpg \| rdfs \| both`) |
+| Assertion PROV + decision history | `DecisionEvent`, `clin:Assertion` |
+| LPG **and** RDFS | `graph.target: lpg \| rdfs \| both` — [graph.md](graph.md) |
+| Event envelope + JSONL upsert | `EventEnvelope`, `JsonlGraphStore` |
+| CI-fast vs CI-integration | Heuristic is the **gate**. Nightly GLiNER NCBI/BC5CDR is **telemetry** (`continue-on-error`) — do not treat it as a release quality gate |
+
+RDFS domain/range is on disk. That is **inference**, not **constraint**. Illegal triples are still rejected by JSON `ontology_rules.json`, not by RDFS.
 
 ---
 
-## P2 — semantics (the differentiated architecture)
+## Pending — do these next, in this order
 
-| Level | State |
-|---|---|
-| 1 JSON domain-range | **Now** (`ontology_rules.json`) |
-| 2 OAK types + catalog | **Now** (mini OBO; Mondo/ChEBI opt-in) |
-| 3 RDF/OWL + SHACL + subclass | Next: compile allow/deny to SHACL; oaklib `ancestors()` so `Metformin rdf:type Ingredient` still satisfies `domain Drug` |
-| 4 Patient / temporal constraints | Later: medication start/stop, lab trend, contraindication |
+The review’s priority list, mapped to work.
 
-Until Level 3 ships, README must say **schema validation**, not “ontology reasoning”.
+### 1. SHACL validation alongside RDFS (P2)
+
+Keep two layers:
+
+- **RDFS/OWL** — infer `rdf:type` (Medication ⊑ ClinicalEntity, …)
+- **SHACL** — reject `Medication HAS_ANATOMICAL_SITE Anatomy`
+
+Compile `config/ontology_rules.json` → SHACL shapes; run pyshacl on the rdflib graph; failed shapes → `REJECTED` with the shape id in `DecisionEvent`. oaklib `ancestors()` so `Metformin rdf:type Ingredient` still satisfies `domain Drug`.
+
+Until this ships, say **schema validation**, not ontology reasoning.
+
+### 2. Mention → Concept → Assertion (biggest semantic gap)
+
+Today a span *is* the entity. Split:
+
+```
+TEXT MENTION     "metformin"  span 124–133  note N
+      ↓ grounding
+CONCEPT          RxNorm:6809  version 2026-03
+      ↓
+ASSERTION        Patient TAKES Concept     time T1  provenance …
+```
+
+Needed for duplicate mentions, multi-document aggregation, contradiction, and temporal reasoning. RelEx spans get you to Mention; they do not get you to Concept.
+
+### 3. Clinical events / time before more relation types
+
+`Patient TAKES Metformin` is too thin. Prefer FHIR-shaped events:
+
+- MedicationAdministration / Order / Discontinuation
+- LabObservation
+- DiagnosisEvent
+- ProcedureEvent
+
+Each with `effectiveTime`, status, dose/route when present, and provenance. Grow **event types**, not binary predicates.
+
+### 4. Cross-document entity resolution
+
+Dedup Patient / Encounter / RxNorm concept across envelopes **before** claiming a living KG. Mention→Concept is a prerequisite.
+
+### 5. FHIR resource ingestion (before Kafka)
+
+Map FHIR `Bundle` / `DocumentReference` / `Composition` text (and later MedicationStatement, Observation) onto `EventEnvelope`. One adapter. No bus yet.
+
+### 6. Review queue for `NEEDS_REVIEW`
+
+Status exists; no API. Minimum: `outputs/kg/pending.jsonl` + a tiny accept/reject CLI that appends a `DecisionEvent(actor=human)`. Pending Cypher type `PENDING_*` already exists when `lpg.emit_pending: true`.
+
+### 7. Official terminology editions
+
+Catalog `version: catalog-ypcc-0.1` is a slice label. Stamp SNOMED edition/date, RxNorm monthly release, LOINC version on `TerminologyLink` and on `clin:terminologyVersion`.
+
+### 8. LLM-adjudication evaluation (separate from NER F1)
+
+Gold: schema-forbidden vs ambiguous vs valid-low-conf. Metrics: agreement with human, over-accept rate, CAUTION rate, cost/escalation. Do **not** fold this into NCBI Disease F1.
+
+### 9. PHI stays experimental; stack Presidio later
+
+Deterministic rules → Presidio / clinical PHI → GLiNER PII → span fusion → policy. Optimize **recall / false negatives**. Keep the README disclaimer.
+
+### 10. Then a bus
+
+Kafka / Pub/Sub / FHIR Subscription **after** envelope + FHIR adapter + idempotent upsert are boring. Consumer group, checkpoint, upsert/retract. Not before.
 
 ---
 
-## P3 — streaming and a living KG (not started)
+## Explicitly later (production bar)
 
-Replace the README phrase “streaming events” with the honest one (already done): *designed to support event-driven ingestion*.
-
-Then, in order:
-
-1. `EventEnvelope` (doc id, source, observed_at, payload, idempotency key)
-2. Worker `process_envelope` → assertion set
-3. Upsert/retract against previous hash of `(doc_id, span, relation)`
-4. Adapter: Kafka / Pub/Sub / FHIR Subscription (one adapter, not three frameworks)
-5. Longitudinal entity resolution (patient, encounter, repeated labs) **before** claiming a continuously evolving KG
+BAA, DUA handling, audit log, KMS, ONNX/GPU SLOs, human review UI, full SNOMED RF2 / RxNorm, certified de-identification.
 
 ---
 
-## P4 — production bar (out of scope for the spike)
+## If we only do four more things
 
-- BAA, DUA handling, audit log, key management
-- Presidio + clinical PHI model + contextual adjudicator
-- Load/latency SLO, ONNX/GPU serving
-- Human review UI
-- Certified terminology distributions (SNOMED RF2, RxNorm full)
+1. SHACL from `ontology_rules.json` + pyshacl on the rdflib graph  
+2. Mention vs Concept vs Assertion in the data model (even if resolution is still per-document)  
+3. MedicationAdministration / LabObservation event types with `effectiveTime`  
+4. FHIR Bundle → `EventEnvelope` + pending-review JSONL  
 
-The spike should stay a **research / architecture control plane** until P1+P2 are boringly green.
-
----
-
-## Suggested sequence (if we only do five more things)
-
-1. SHACL compiled from `ontology_rules.json` + oaklib subclass closure  
-2. Assertion PROV on every edge  
-3. RelEx span golden tests + NCBI/BC5CDR nightly  
-4. `EventEnvelope` + idempotent upsert (even if the “bus” is a directory of JSONL)  
-5. Pending-review sink so `NEEDS_REVIEW` never looks like `VALIDATED` in Neo4j
-
-That is the path from “GLiNER → KG demo” to the control plane the review asked for.
+That is the path from “GLiNER → KG demo” to the control plane the review asked to preserve.

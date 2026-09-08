@@ -2,9 +2,9 @@
 
 **clinical-gliner-kg** is a reference implementation of a *clinical extraction plane*:
 
-**GLiNER 2.5 → PHI gate → oaklib + terminology catalog → spaCy-LLM only when needed → provenance-aware knowledge graph**
+**GLiNER 2.5 → PHI gate → oaklib + terminology catalog → schema router → LLM only when configured → provenance-bearing LPG/RDF assertions**
 
-It is software for a technical spike, not a product, not a certified medical device, and not a HIPAA compliance program.
+It is software for a technical spike, not a product, not a certified medical device, and not a HIPAA compliance program. Review snapshot: [next-steps.md](next-steps.md) (shipped vs pending).
 
 ## The claim
 
@@ -17,9 +17,10 @@ Drive it with [`config/pipeline.yaml`](../config/pipeline.yaml). API-key walkthr
 - Heuristic backend (CI, no weights)
 - Fastino `fastino/gliner2.5-small-v1` when `gliner2[local]` is installed
 - Classic GLiNER via `gliner-spacy`
-- PHI regex gate; optional GLiNER PII checkpoint
+- PHI regex gate; optional GLiNER PII checkpoint (**experimental**, not HIPAA)
 - oaklib `simpleobo:` on the bundled mini ontology, or `sqlite:obo:mondo` / `chebi` when you opt in
-- Cypher, JSON-LD, and Turtle emitters
+- **LPG Cypher and/or RDFS SPARQL** (`graph.target`)
+- Assertion-level PROV + JSONL upsert (`EventEnvelope`)
 - NCBI Disease + BC5CDR literature spike (`examples/run_literature_benchmark.py`)
 
 ## What this is not
