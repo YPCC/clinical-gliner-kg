@@ -99,11 +99,11 @@ clinical-gliner-kg/
 ├── src/clinical_gliner_kg/
 │   ├── backends/           GLiNER 2.5 · gliner-spacy · heuristic fallback
 │   ├── components/         PHI gate · oaklib grounder · ontology · LLM
-│   ├── graph/              Cypher / JSON-LD / Turtle emitter
+│   ├── graph/              LPG/Cypher · RDFS/SPARQL (rdflib+PyLD) · JSONL store
 │   └── pipeline.py
 ├── data/
 │   ├── synthetic/          runnable gold notes + PHI examples
-│   ├── ontologies/         mini OBO used by oaklib simpleobo
+│   ├── ontologies/         mini OBO + clinical.rdfs.ttl
 │   └── catalogs/           slice of YPCC/medical-data (open vs DUA)
 ├── examples/               demos and benchmarks
 └── tests/                  no-weight unit tests
@@ -259,7 +259,8 @@ Backend selection (`--backend` or `CLINICAL_GLINER_BACKEND`):
 python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic
 python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic --all-notes
 python examples/run_phi_benchmark.py
-python examples/run_kg_demo.py --config config/pipeline.yaml --outdir outputs/kg
+python examples/run_kg_demo.py --config config/pipeline.yaml --format both --outdir outputs/kg
+python examples/run_stream_jsonl.py --store outputs/kg/assertions.jsonl
 python examples/run_architecture_spike.py --config config/pipeline.yaml --backend heuristic
 python examples/list_open_datasets.py
 clinical-gliner --config config/pipeline.yaml \

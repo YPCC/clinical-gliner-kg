@@ -29,6 +29,7 @@ LLMProvider = Literal[
     "vertex",
     "anthropic",
 ]
+GraphTarget = Literal["lpg", "rdfs", "both"]
 BackendName = Literal["auto", "gliner25", "gliner_spacy", "heuristic"]
 
 
@@ -209,6 +210,49 @@ class PHISettings(BaseModel):
     enable_gliner_pii: bool = False
 
 
+class LpgSettings(BaseModel):
+    dialect: str = "cypher"
+    emit_pending: bool = True
+
+
+class RdfsSettings(BaseModel):
+    ontology: str = "data/ontologies/clinical.rdfs.ttl"
+    serialization: str = "turtle"  # turtle | ntriples | jsonld | rdfxml
+    infer: str = "none"  # none | rdfs
+    base_iri: str = "https://ypcc.dev/clinical-gliner-kg/"
+    include_assertions: bool = True
+
+
+class GraphSettings(BaseModel):
+    """LPG/Cypher, RDFS/SPARQL, or both."""
+
+    target: GraphTarget = "both"
+    lpg: LpgSettings = Field(default_factory=LpgSettings)
+    rdfs: RdfsSettings = Field(default_factory=RdfsSettings)
+    store_path: str = "outputs/kg/assertions.jsonl"
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _alias_target(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        aliases = {
+            "cypher": "lpg",
+            "neo4j": "lpg",
+            "rdf": "rdfs",
+            "sparql": "rdfs",
+            "jsonld": "rdfs",
+            "all": "both",
+        }
+        return aliases.get(value.lower(), value.lower())
+
+    def emit_lpg(self) -> bool:
+        return self.target in {"lpg", "both"}
+
+    def emit_rdfs(self) -> bool:
+        return self.target in {"rdfs", "both"}
+
+
 class PipelineSettings(BaseModel):
     pipeline_version: str = "0.1.0-cascaded"
     backend: BackendName = "auto"
@@ -241,6 +285,7 @@ class PipelineSettings(BaseModel):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     gcp: GCPSettings = Field(default_factory=GCPSettings)
     phi: PHISettings = Field(default_factory=PHISettings)
+    graph: GraphSettings = Field(default_factory=GraphSettings)
 
     def oak_selectors(self) -> list[str]:
         if self.oaklib.mode == "ols":
@@ -311,6 +356,7 @@ def _overlay_env(raw: dict[str, Any]) -> dict[str, Any]:
     llm = raw.setdefault("llm", {})
     gcp = raw.setdefault("gcp", {})
     phi = raw.setdefault("phi", {})
+    graph = raw.setdefault("graph", {})
 
     if backend := _env("CLINICAL_GLINER_BACKEND"):
         raw["backend"] = backend
@@ -350,6 +396,10 @@ def _overlay_env(raw: dict[str, Any]) -> dict[str, Any]:
         llm.setdefault("vertex", {})["location"] = _env("GOOGLE_CLOUD_LOCATION")
     if action := _env("PHI_ACTION"):
         phi["action"] = action
+    if target := _env("GRAPH_TARGET"):
+        graph["target"] = target
+    if store := _env("GRAPH_STORE"):
+        graph["store_path"] = store
     return raw
 
 

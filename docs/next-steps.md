@@ -31,25 +31,15 @@ New statuses: `LINKED`, `UNLINKED`, `NEEDS_REVIEW`, `LLM_VALIDATED`, `LLM_REJECT
 
 ---
 
-## P1 — make the spike robust (next engineering)
+## P1 — make the spike robust (this pass)
 
-1. **Real LLM on the exception path in CI**  
-   Fixture a fake OpenAI-compat server (or VCR). Today unit tests mock `chat_complete`; integration does not call a model.
-
-2. **Assertion-level provenance**  
-   Promote `ClinicalEntity` / `ClinicalRelation` into an `Assertion` envelope: evidence span, model+version, terminology version, schema verdict, LLM model/prompt hash, decision history. JSON-LD `@prov` on every edge, not only the document.
-
-3. **RelEx fixtures**  
-   Golden JointIE / `extract_relations` payloads with **two identical surface forms** at different offsets. Guard `_nearest` regressions.
-
-4. **PHI recall harness**  
-   Keep synthetic PHI; add ASQ-PHI; report FN-first metrics. Optional Presidio as the deterministic first stage (do not replace GLiNER PII — stack it).
-
-5. **CI-integration job**  
-   Fast job stays heuristic. Second job: `gliner2.5-small` on CPU, mini OBO, KG round-trip. Nightly: NCBI/BC5CDR limit=30.
-
-6. **Do not emit `NEEDS_REVIEW` as if it were knowledge**  
-   Either a separate `pending.jsonl` or Cypher with a `Pending` relationship type. Product decision; default today is emit with status so nothing is silently dropped.
+| Item | State |
+|---|---|
+| Assertion-level PROV + decision history + terminology version | **Done** (`DecisionEvent`, `clin:Assertion`, catalog `version`) |
+| RelEx span goldens | **Done** (`tests/data/relex_spans.json`) |
+| CI-fast vs CI-integration | **Done** (`.github/workflows/ci.yml` heuristic; `ci-integration.yml` RDF goldens + nightly GLiNER 2.5-small) |
+| EventEnvelope + JSONL idempotent upsert | **Done** (`examples/run_stream_jsonl.py`) |
+| RDFS KG via rdflib + PyLD + SPARQL | **Done** (`graph.target: lpg \| rdfs \| both`) |
 
 ---
 

@@ -1,0 +1,17 @@
+{
+  "text": "The patient previously received metformin. Metformin was discontinued. Later metformin was restarted after HbA1c increased.",
+  "entities": [
+    {"id": "m1", "text": "metformin", "label": "Medication", "start_char": 32, "end_char": 41, "confidence": 0.9},
+    {"id": "m2", "text": "Metformin", "label": "Medication", "start_char": 43, "end_char": 52, "confidence": 0.9},
+    {"id": "m3", "text": "metformin", "label": "Medication", "start_char": 77, "end_char": 86, "confidence": 0.9},
+    {"id": "lab", "text": "HbA1c", "label": "Laboratory_Test", "start_char": 107, "end_char": 112, "confidence": 0.9}
+  ],
+  "relations": [
+    {
+      "rel": "TAKES",
+      "head": {"text": "metformin", "start": 77, "end": 86},
+      "tail": {"text": "HbA1c", "start": 107, "end": 112},
+      "expect_subject_id": "m3"
+    }
+  ]
+}

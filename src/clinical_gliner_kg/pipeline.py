@@ -10,9 +10,14 @@ from clinical_gliner_kg.components.llm_adjudicator import LLMAdjudicator
 from clinical_gliner_kg.components.ontology_linker import OntologyValidationEngine
 from clinical_gliner_kg.components.phi_gate import PHIPolicyGate
 from clinical_gliner_kg.graph.emitter import GraphEmitter
+from clinical_gliner_kg.graph.store import JsonlGraphStore
 from clinical_gliner_kg.models import (
     ClinicalKnowledgeGraph,
+    DecisionEvent,
+    EventEnvelope,
     ProvenanceMetadata,
+    stamp_entity_keys,
+    stamp_relation_keys,
 )
 from clinical_gliner_kg.settings import PipelineSettings, load_settings
 
@@ -91,7 +96,7 @@ class ClinicalSemanticExtractionPipeline:
             anthropic_model=cfg.llm.anthropic.model,
             temperature=cfg.llm.openai.temperature,
         )
-        self.emitter = GraphEmitter()
+        self.emitter = GraphEmitter(cfg.graph)
         self.pipeline_version = cfg.pipeline_version
 
     def process_document(self, text: str, document_id: str | None = None) -> ClinicalKnowledgeGraph:
@@ -99,6 +104,19 @@ class ClinicalSemanticExtractionPipeline:
         entities, relations = self.extractor.extract(text)
         text_out, entities, _findings = self.phi_gate.apply(text, entities)
         entities = [self.ontology.link_entity(ent) for ent in entities]
+        for ent in entities:
+            stamp_entity_keys(doc_id, ent)
+            if not ent.history:
+                ent.history.append(
+                    DecisionEvent(
+                        actor="catalog" if ent.terminology and ent.terminology.method.startswith("catalog") else (
+                            "oak" if ent.terminology else "extractor"
+                        ),
+                        decision=ent.validation_status.value,
+                        comment=ent.terminology.display if ent.terminology else "no terminology hit",
+                        model=ent.source_model,
+                    )
+                )
         entity_map = {ent.id: ent for ent in entities}
         validation = [self.ontology.validate_relation(rel, entity_map) for rel in relations]
         llm_ready = self.adjudicator.llm_ready
@@ -107,6 +125,13 @@ class ClinicalSemanticExtractionPipeline:
             for rel, (is_valid, _) in zip(relations, validation)
         )
         final_relations = self.adjudicator.adjudicate_relations(relations, entity_map, validation)
+        for rel in final_relations:
+            subj, obj = entity_map.get(rel.subject_id), entity_map.get(rel.object_id)
+            if rel.subject_start is None and subj:
+                rel.subject_start, rel.subject_end = subj.start_char, subj.end_char
+            if rel.object_start is None and obj:
+                rel.object_start, rel.object_end = obj.start_char, obj.end_char
+            stamp_relation_keys(doc_id, rel)
         kg = ClinicalKnowledgeGraph(
             document_id=doc_id,
             text=text_out,
@@ -118,9 +143,18 @@ class ClinicalSemanticExtractionPipeline:
                 extraction_backend=getattr(self.extractor, "name", "unknown"),
                 escalation_used=escalation,
                 llm_invoked=escalation and llm_ready,
+                graph_target=self.settings.graph.target,
             ),
         )
-        kg.cypher_queries = self.emitter.emit_cypher(kg)
-        kg.json_ld = self.emitter.emit_json_ld(kg)
-        kg.turtle = self.emitter.emit_turtle(kg)
+        return self.emitter.populate(kg)
+
+    def process_envelope(self, envelope: EventEnvelope) -> ClinicalKnowledgeGraph:
+        kg = self.process_document(envelope.payload, document_id=envelope.document_id)
+        kg.provenance.event_id = envelope.event_id
+        return kg
+
+    def process_and_upsert(self, envelope: EventEnvelope, store: JsonlGraphStore | None = None) -> ClinicalKnowledgeGraph:
+        kg = self.process_envelope(envelope)
+        target = store or JsonlGraphStore(self.settings.graph.store_path)
+        target.upsert(kg)
         return kg

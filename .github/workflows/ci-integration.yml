@@ -1,0 +1,38 @@
+name: CI-integration
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+jobs:
+  rdf-and-goldens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,graph]"
+      - name: RDF / RelEx / store tests
+        run: pytest -q tests/test_rdf.py tests/test_store.py tests/test_relex_spans.py tests/test_robustness.py
+  gliner-small:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-gliner25-small-${{ runner.os }}
+      - name: Install GLiNER 2.5 + oak + datasets
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,gliner2,oak,datasets,graph]"
+      - name: NCBI + BC5CDR spike (limit 10)
+        continue-on-error: true
+        run: python examples/run_literature_benchmark.py --backend gliner25 --limit 10 --outdir outputs/nightly

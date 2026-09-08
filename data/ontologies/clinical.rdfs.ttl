@@ -1,0 +1,78 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix clin: <https://ypcc.dev/clinical-gliner-kg/ontology#> .
+
+# --- Classes (RDFS, not OWL) ---
+clin:ClinicalEntity a rdfs:Class ;
+  rdfs:label "Clinical entity" ;
+  rdfs:comment "Extracted span grounded (or not) to a terminology." .
+
+clin:Patient     a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Patient" .
+clin:Condition   a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Condition" .
+clin:Medication  a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Medication" .
+clin:Laboratory_Test a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Laboratory test" .
+clin:Laboratory_Result a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Laboratory result" .
+clin:Anatomy     a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Anatomy" .
+clin:Procedure   a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Procedure" .
+clin:Provider    a rdfs:Class ; rdfs:subClassOf clin:ClinicalEntity ; rdfs:label "Provider" .
+clin:Chemical    a rdfs:Class ; rdfs:subClassOf clin:Medication ; rdfs:label "Chemical" .
+clin:Disease     a rdfs:Class ; rdfs:subClassOf clin:Condition ; rdfs:label "Disease" .
+
+clin:Assertion a rdfs:Class ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:label "Semantic assertion" ;
+  rdfs:comment "N-ary wrapper so every edge carries PROV, confidence, and decision history." .
+
+clin:ClinicalDocument a rdfs:Class ; rdfs:subClassOf prov:Entity ; rdfs:label "Clinical document" .
+
+# --- Object properties with RDFS domain / range ---
+clin:hasCondition a rdf:Property ;
+  rdfs:label "has condition" ;
+  rdfs:domain clin:Patient ; rdfs:range clin:Condition .
+
+clin:takes a rdf:Property ;
+  rdfs:label "takes" ;
+  rdfs:domain clin:Patient ; rdfs:range clin:Medication .
+
+clin:treats a rdf:Property ;
+  rdfs:label "treats" ;
+  rdfs:domain clin:Medication ; rdfs:range clin:Condition .
+
+clin:hasValue a rdf:Property ;
+  rdfs:label "has value" ;
+  rdfs:domain clin:Laboratory_Test ; rdfs:range clin:Laboratory_Result .
+
+clin:indicates a rdf:Property ;
+  rdfs:label "indicates" ;
+  rdfs:domain clin:Laboratory_Test ; rdfs:range clin:Condition .
+
+clin:performed a rdf:Property ;
+  rdfs:label "performed" ;
+  rdfs:domain clin:Provider ; rdfs:range clin:Procedure .
+
+clin:hasAnatomicalSite a rdf:Property ;
+  rdfs:label "has anatomical site" ;
+  rdfs:domain clin:Condition ; rdfs:range clin:Anatomy .
+
+clin:chemicalInducesDisease a rdf:Property ;
+  rdfs:label "chemical-induces-disease" ;
+  rdfs:domain clin:Chemical ; rdfs:range clin:Disease .
+
+# --- Assertion / PROV properties ---
+clin:subject          a rdf:Property ; rdfs:domain clin:Assertion ; rdfs:range clin:ClinicalEntity .
+clin:predicate        a rdf:Property ; rdfs:domain clin:Assertion ; rdfs:range rdf:Property .
+clin:object           a rdf:Property ; rdfs:domain clin:Assertion ; rdfs:range clin:ClinicalEntity .
+clin:status           a rdf:Property ; rdfs:domain clin:Assertion ; rdfs:range rdfs:Literal .
+clin:confidence       a rdf:Property ; rdfs:range xsd:float .
+clin:linkingConfidence a rdf:Property ; rdfs:range xsd:float .
+clin:prefLabel        a rdf:Property ; rdfs:subPropertyOf rdfs:label .
+clin:code             a rdf:Property ; rdfs:range rdfs:Literal .
+clin:terminologySystem a rdf:Property ; rdfs:range rdfs:Literal .
+clin:terminologyVersion a rdf:Property ; rdfs:range rdfs:Literal .
+clin:evidenceSpan     a rdf:Property ; rdfs:range rdfs:Literal .
+clin:startChar        a rdf:Property ; rdfs:range xsd:integer .
+clin:endChar          a rdf:Property ; rdfs:range xsd:integer .
+clin:idempotencyKey   a rdf:Property ; rdfs:range rdfs:Literal .
+clin:decisionComment  a rdf:Property ; rdfs:range rdfs:Literal .

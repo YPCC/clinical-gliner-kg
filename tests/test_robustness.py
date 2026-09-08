@@ -81,7 +81,7 @@ def test_emitter_drops_relations_to_phi_even_if_validated():
         ],
         provenance=ProvenanceMetadata(document_id="d1"),
     )
-    cypher = GraphEmitter.emit_cypher(kg)
+    cypher = GraphEmitter().emit_cypher(kg)
     assert not any("HAS_CONDITION" in row for row in cypher)
     assert "Jane" not in " ".join(cypher)
 

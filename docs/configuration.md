@@ -13,7 +13,7 @@ String values expand `$VAR` / `${VAR}`.
 
 | File | Intent |
 |---|---|
-| [`config/pipeline.yaml`](../config/pipeline.yaml) | Default local / offline demo |
+| [`config/pipeline.yaml`](../config/pipeline.yaml) | Default local / offline demo (`graph.target: both`) |
 | [`config/pipeline.api-keys.example.yaml`](../config/pipeline.api-keys.example.yaml) | Hosted Pioneer + OpenAI + BioPortal |
 | [`config/pipeline.google-api-key.example.yaml`](../config/pipeline.google-api-key.example.yaml) | Gemini via `GOOGLE_API_KEY` |
 | [`config/pipeline.openai-compat.example.yaml`](../config/pipeline.openai-compat.example.yaml) | Any OpenAI-compatible `base_url` + key |
@@ -273,6 +273,21 @@ Official OAK docs: [home](https://incatools.github.io/ontology-access-kit/) · [
 | `anthropic` | `ANTHROPIC_API_KEY` |
 
 Env: `LLM_PROVIDER`, `LLM_ENABLE=1`, `OPENAI_MODEL`, `LLM_BASE_URL`, `GOOGLE_API_KEY`. Aliases: `gemini` → `google`, `openai-compatible` → `openai_compat`.
+
+### Graph (LPG vs RDFS)
+
+```yaml
+graph:
+  target: both                 # lpg | rdfs | both  (GRAPH_TARGET)
+```
+
+| target | Output |
+|---|---|
+| `lpg` | Neo4j Cypher |
+| `rdfs` | rdflib Turtle / JSON-LD (PyLD) / SPARQL |
+| `both` | both (default) |
+
+Full walkthrough: [graph.md](graph.md).
 
 ### PHI
 

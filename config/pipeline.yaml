@@ -137,3 +137,21 @@ gcp:
 phi:
   action: tag                    # tag | mask | route
   enable_gliner_pii: false
+
+# ---------------------------------------------------------------------------
+# Graph emission: LPG (Cypher) and/or RDFS (rdflib + PyLD + SPARQL)
+# ---------------------------------------------------------------------------
+# target: lpg | rdfs | both     (aliases: cypher, neo4j, rdf, sparql, all)
+# GRAPH_TARGET env var overrides this.
+graph:
+  target: both
+  lpg:
+    dialect: cypher
+    emit_pending: true           # NEEDS_REVIEW → PENDING_* relationship type
+  rdfs:
+    ontology: data/ontologies/clinical.rdfs.ttl
+    serialization: turtle        # turtle | ntriples | jsonld | rdfxml
+    infer: none                  # none | rdfs (needs owlrl)
+    base_iri: https://ypcc.dev/clinical-gliner-kg/
+    include_assertions: true     # n-ary clin:Assertion + PROV on every edge
+  store_path: outputs/kg/assertions.jsonl

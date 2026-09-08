@@ -10,4 +10,4 @@
 | [`terminology_catalog.json`](terminology_catalog.json) | RxNorm / SNOMED / LOINC lookup table |
 | [`spacy_llm.cfg`](spacy_llm.cfg) | spaCy-LLM NER.v3 task (OpenAI path) |
 
-How to run them: [docs/configuration.md](../docs/configuration.md).
+`graph.target` in `pipeline.yaml` selects **LPG/Cypher**, **RDFS/SPARQL**, or **both**. See [docs/graph.md](../docs/graph.md).

@@ -8,7 +8,7 @@ What this repository is, how to drive it from **`config/pipeline.yaml`**, how **
 | [Overview](overview.md) | Purpose, non-goals, who it is for |
 | [Architecture](architecture.md) | Cascade stages, mermaid diagrams, provenance |
 | [C4 diagrams](c4/README.md) | Context, container, and system (component) views |
-| [Next steps](next-steps.md) | Review-driven backlog: P0 shipped, P1–P4 remaining |
+| [Graph (LPG / RDFS)](graph.md) | Cypher vs rdflib+PyLD SPARQL; JSONL upsert |
 | [oaklib grounding](oaklib-grounding.md) | Local OBO / SQLite vs remote OLS/BioPortal |
 | [Evaluation](evaluation.md) | Metrics, live GLiNER 2.5 spike, cost model |
 | [Data policy](data-policy.md) | Open corpora vs DUA (n2c2, MIMIC) |

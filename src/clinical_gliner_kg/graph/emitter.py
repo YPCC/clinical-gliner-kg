@@ -1,8 +1,9 @@
-"""Emit Cypher, JSON-LD, and Turtle with provenance."""
+"""Emit LPG (Cypher) and/or RDFS (Turtle / JSON-LD / SPARQL) with provenance."""
 
 from __future__ import annotations
 
 from clinical_gliner_kg.models import ClinicalKnowledgeGraph, ValidationStatus
+from clinical_gliner_kg.settings import GraphSettings
 
 _DROP_REL = {
     ValidationStatus.REJECTED,
@@ -18,23 +19,50 @@ def _safe_ids(graph: ClinicalKnowledgeGraph) -> set[str]:
     return {ent.id for ent in graph.entities if not ent.is_phi}
 
 
-def _emit_relation(rel, safe: set[str]) -> bool:
+def _emit_relation(rel, safe: set[str], emit_pending: bool = True) -> bool:
     if rel.validation_status in _DROP_REL:
+        return False
+    if not emit_pending and rel.validation_status == ValidationStatus.NEEDS_REVIEW:
         return False
     return rel.subject_id in safe and rel.object_id in safe
 
 
 class GraphEmitter:
-    @staticmethod
-    def emit_cypher(graph: ClinicalKnowledgeGraph) -> list[str]:
+    def __init__(self, settings: GraphSettings | None = None) -> None:
+        self.settings = settings or GraphSettings()
+
+    def populate(self, graph: ClinicalKnowledgeGraph) -> ClinicalKnowledgeGraph:
+        graph.provenance.graph_target = self.settings.target
+        graph.json_ld = self.emit_json_ld(graph)
+        if self.settings.emit_lpg():
+            graph.cypher_queries = self.emit_cypher(graph)
+        if self.settings.emit_rdfs():
+            try:
+                from clinical_gliner_kg.graph.rdf import RdfEmitter
+
+                rdf = RdfEmitter(self.settings.rdfs)
+                graph.turtle = rdf.serialize(graph, "turtle")
+                graph.rdf_jsonld = rdf.json_ld(graph)
+                if self.settings.rdfs.serialization == "rdfxml":
+                    graph.rdfxml = rdf.serialize(graph, "xml")
+                graph.sparql = rdf.default_queries(graph)
+            except RuntimeError:
+                graph.turtle = graph.turtle or self.emit_turtle(graph)
+        else:
+            graph.turtle = self.emit_turtle(graph)
+        return graph
+
+    def emit_cypher(self, graph: ClinicalKnowledgeGraph) -> list[str]:
         queries: list[str] = []
         meta = graph.provenance
         safe = _safe_ids(graph)
+        pending = self.settings.lpg.emit_pending
         for ent in graph.entities:
             if ent.is_phi or ent.id not in safe:
                 continue
             code = ent.terminology.code if ent.terminology else "UNLINKED"
             system = ent.terminology.system if ent.terminology else "NONE"
+            version = ent.terminology.version if ent.terminology else ""
             queries.append(
                 "MERGE (e:"
                 + ent.label
@@ -47,6 +75,8 @@ class GraphEmitter:
                 + _esc(code)
                 + "', e.system = '"
                 + _esc(system)
+                + "', e.term_version = '"
+                + _esc(version)
                 + "', e.doc_id = '"
                 + _esc(meta.document_id)
                 + "', e.confidence = "
@@ -57,11 +87,14 @@ class GraphEmitter:
                 + _esc(ent.source_model)
                 + "', e.status = '"
                 + ent.validation_status.value
+                + "', e.key = '"
+                + _esc(ent.idempotency_key)
                 + "'"
             )
         for rel in graph.relations:
-            if not _emit_relation(rel, safe):
+            if not _emit_relation(rel, safe, emit_pending=pending):
                 continue
+            rel_type = "PENDING_" + rel.relation if rel.validation_status == ValidationStatus.NEEDS_REVIEW else rel.relation
             queries.append(
                 "MATCH (s {id: '"
                 + _esc(rel.subject_id)
@@ -69,14 +102,17 @@ class GraphEmitter:
                 + _esc(rel.object_id)
                 + "'}) "
                 + "MERGE (s)-[r:"
-                + rel.relation
-                + " {confidence: "
+                + rel_type
+                + " {key: '"
+                + _esc(rel.idempotency_key)
+                + "'}]->(o) "
+                + "SET r.confidence = "
                 + f"{rel.confidence:.3f}"
-                + ", status: '"
+                + ", r.status = '"
                 + rel.validation_status.value
-                + "', doc_id: '"
+                + "', r.doc_id = '"
                 + _esc(meta.document_id)
-                + "'}]->(o)"
+                + "'"
             )
         return queries
 
@@ -89,14 +125,18 @@ class GraphEmitter:
                 "rxnorm": "http://purl.bioontology.org/ontology/RXNORM/",
                 "loinc": "http://loinc.org/rdf/",
                 "prov": "http://www.w3.org/ns/prov#",
-                "schema": "https://schema.org/",
+                "clin": "https://ypcc.dev/clinical-gliner-kg/ontology#",
             },
             "@id": f"urn:doc:{graph.document_id}",
             "prov:generatedAtTime": graph.provenance.extracted_at,
             "prov:wasDerivedFrom": graph.document_id,
             "prov:wasGeneratedBy": graph.provenance.extraction_backend,
             "entities": [ent.model_dump() for ent in graph.entities if ent.id in safe],
-            "relations": [rel.model_dump() for rel in graph.relations if _emit_relation(rel, safe)],
+            "relations": [
+                rel.model_dump()
+                for rel in graph.relations
+                if _emit_relation(rel, safe)
+            ],
         }
 
     @staticmethod
@@ -115,6 +155,7 @@ class GraphEmitter:
             lines.append(f'  ex:prefLabel "{_esc(ent.text)}" ;')
             if ent.terminology:
                 lines.append(f'  ex:code "{_esc(ent.terminology.system)}:{_esc(ent.terminology.code)}" ;')
+                lines.append(f'  ex:termVersion "{_esc(ent.terminology.version)}" ;')
             lines.append(f'  ex:status "{ent.validation_status.value}" ;')
             lines.append(f"  ex:confidence {ent.confidence:.3f} .")
         for rel in graph.relations:

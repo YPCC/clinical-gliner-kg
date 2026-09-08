@@ -125,6 +125,10 @@ class HeuristicBackend:
                     object_id=obj.id,
                     confidence=conf,
                     source_model="heuristic-relex",
+                    subject_start=subj.start_char,
+                    subject_end=subj.end_char,
+                    object_start=obj.start_char,
+                    object_end=obj.end_char,
                 )
             )
 

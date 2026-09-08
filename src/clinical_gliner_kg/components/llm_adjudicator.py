@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from clinical_gliner_kg.components.llm_client import GOOGLE_OPENAI_BASE, chat_complete, resolve_api_key
-from clinical_gliner_kg.models import ClinicalEntity, ClinicalRelation, ValidationStatus
+from clinical_gliner_kg.models import ClinicalEntity, ClinicalRelation, DecisionEvent, ValidationStatus
 
 
 class LLMAdjudicator:
@@ -139,15 +139,21 @@ class LLMAdjudicator:
             if forbidden:
                 rel.validation_status = ValidationStatus.REJECTED
                 rel.validation_comment = comment
+                rel.schema_verdict = "forbidden"
                 rel.confidence = original_conf
+                rel.history.append(DecisionEvent(actor="schema", decision="REJECTED", comment=comment))
                 out.append(rel)
                 continue
             if is_valid and rel.confidence >= self.threshold:
                 rel.validation_status = ValidationStatus.VALIDATED
                 rel.validation_comment = comment
+                rel.schema_verdict = "allowed"
+                rel.history.append(DecisionEvent(actor="schema", decision="VALIDATED", comment=comment))
                 out.append(rel)
                 continue
+            rel.schema_verdict = "ambiguous" if is_valid else "unregistered"
             rel.validation_status = ValidationStatus.ESCALATED_TO_LLM
+            rel.history.append(DecisionEvent(actor="schema", decision="ESCALATED_TO_LLM", comment=comment))
             out.append(self._arbitrate(rel, entity_map, comment, original_conf))
         return out
 
@@ -172,6 +178,7 @@ class LLMAdjudicator:
         if not llm_ready:
             rel.validation_status = ValidationStatus.NEEDS_REVIEW
             rel.validation_comment = f"No LLM configured; queued for review ({reason})"
+            rel.history.append(DecisionEvent(actor="router", decision="NEEDS_REVIEW", comment=rel.validation_comment))
             return rel
         verdict = self._llm_verdict(rel, entity_map, reason)
         rel.adjudication_model = (self._chat or {}).get("model") if self._chat else (
@@ -181,13 +188,16 @@ class LLMAdjudicator:
         if verdict == "REJECT":
             rel.validation_status = ValidationStatus.LLM_REJECTED
             rel.validation_comment = f"{note}LLM rejected ({reason})"
+            rel.history.append(DecisionEvent(actor="llm", decision="LLM_REJECTED", comment=rel.validation_comment, model=rel.adjudication_model))
             return rel
         if verdict == "ACCEPT":
             rel.validation_status = ValidationStatus.LLM_VALIDATED
             rel.validation_comment = f"{note}LLM accepted ({reason})"
+            rel.history.append(DecisionEvent(actor="llm", decision="LLM_VALIDATED", comment=rel.validation_comment, model=rel.adjudication_model))
             return rel
         rel.validation_status = ValidationStatus.NEEDS_REVIEW
         rel.validation_comment = f"{note}LLM unavailable or inconclusive ({reason})"
+        rel.history.append(DecisionEvent(actor="llm", decision="NEEDS_REVIEW", comment=rel.validation_comment, model=rel.adjudication_model))
         return rel
 
     def _llm_verdict(

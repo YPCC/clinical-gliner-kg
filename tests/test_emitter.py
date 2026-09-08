@@ -43,7 +43,7 @@ def test_emitter_skips_rejected_and_phi():
         ],
         provenance=ProvenanceMetadata(document_id="d1"),
     )
-    cypher = GraphEmitter.emit_cypher(kg)
+    cypher = GraphEmitter().emit_cypher(kg)
     assert any("Medication" in row for row in cypher)
     assert not any("jane@" in row for row in cypher)
     assert not any("HAS_ANATOMICAL_SITE" in row for row in cypher)

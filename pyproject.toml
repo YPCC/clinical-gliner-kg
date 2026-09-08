@@ -30,7 +30,7 @@ spacy = ["spacy>=3.7.4"]
 gliner = ["gliner>=0.2.8", "gliner-spacy>=0.0.8"]
 gliner2 = ["gliner2[local]>=0.1.0"]
 llm = ["spacy-llm>=0.7.2"]
-graph = ["networkx>=3.2.1", "rdflib>=7.0.0"]
+graph = ["networkx>=3.2.1", "rdflib>=7.0.0", "PyLD>=2.0.4"]
 oak = ["oaklib>=0.6.0"]
 datasets = ["datasets>=2.16.0"]
 all = [
@@ -41,10 +41,11 @@ all = [
   "spacy-llm>=0.7.2",
   "networkx>=3.2.1",
   "rdflib>=7.0.0",
+  "PyLD>=2.0.4",
   "oaklib>=0.6.0",
   "datasets>=2.16.0",
 ]
-dev = ["pytest>=8.0.0", "ruff>=0.3.0"]
+dev = ["pytest>=8.0.0", "ruff>=0.3.0", "rdflib>=7.0.0", "PyLD>=2.0.4"]
 
 [project.urls]
 Homepage = "https://github.com/YPCC/clinical-gliner-kg"
