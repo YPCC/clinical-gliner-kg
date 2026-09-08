@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import time
 
+from pathlib import Path
+
 from rich.console import Console
 from rich.table import Table
 
@@ -20,10 +22,10 @@ from clinical_gliner_kg.pipeline import ClinicalSemanticExtractionPipeline
 console = Console()
 
 
-def live_quality(backend: str) -> dict:
+def live_quality(backend: str, config_path: Path | None = None) -> dict:
     notes = {row["id"]: row for row in load_synthetic_clinical_notes()}
     gold = {row["id"]: row for row in load_gold_annotations()}
-    pipeline = ClinicalSemanticExtractionPipeline(backend=backend)
+    pipeline = ClinicalSemanticExtractionPipeline(backend=backend, config_path=config_path)
     pred_ents: list[tuple[str, str]] = []
     gold_ents: list[tuple[str, str]] = []
     pred_rels: list[tuple[str, str, str]] = []
@@ -58,9 +60,10 @@ def live_quality(backend: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", default="heuristic")
+    parser.add_argument("--config", type=Path, default=None)
     args = parser.parse_args()
 
-    quality = live_quality(args.backend)
+    quality = live_quality(args.backend, args.config)
     console.print(
         f"[bold]Live cascade on synthetic gold[/bold]  backend={quality['backend']}  "
         f"time={quality['seconds']:.3f}s"

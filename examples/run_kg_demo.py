@@ -14,11 +14,12 @@ from clinical_gliner_kg.pipeline import ClinicalSemanticExtractionPipeline
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", default="heuristic")
+    parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--outdir", type=Path, default=Path("outputs/kg"))
     args = parser.parse_args()
     args.outdir.mkdir(parents=True, exist_ok=True)
 
-    pipeline = ClinicalSemanticExtractionPipeline(backend=args.backend)
+    pipeline = ClinicalSemanticExtractionPipeline(backend=args.backend, config_path=args.config)
     combined_cypher: list[str] = []
     combined_ttl: list[str] = []
     docs = []

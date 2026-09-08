@@ -6,4 +6,5 @@
 4. Prefer extending backends behind `resolve_backend()` so `auto` keeps working.
 5. Run `pytest -q` and `python examples/run_pipeline.py --backend heuristic` before opening a PR.
 6. Architecture, oaklib, and bibliography live in `docs/`. Keep README diagrams in mermaid; do not restore ASCII flowcharts.
+7. Runtime modes (GLiNER local vs API, oaklib local vs OLS/BioPortal, LLM provider, GCP ADC) belong in `config/pipeline.yaml`. Do not add new secret-bearing env vars without documenting them in `docs/configuration.md` and `.env.example`.
 

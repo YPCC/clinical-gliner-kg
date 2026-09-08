@@ -2,7 +2,18 @@
 
 This repo uses **[oaklib](https://incatools.github.io/ontology-access-kit/)** (Ontology Access Kit) to ground extracted spans to ontology CURIEs.
 
-**You do not need a BioPortal, OLS, or other API key for the default path.** oaklib talks to **ontology files on disk**. Remote adapters exist, but they are optional.
+Choose the mode in [`config/pipeline.yaml`](../config/pipeline.yaml) (see [configuration.md](configuration.md)):
+
+```yaml
+oaklib:
+  mode: local          # local | ols | bioportal
+  eager: false
+  local:
+    adapters:
+      - simpleobo:data/ontologies/mini_clinical.obo
+```
+
+**You do not need a BioPortal, OLS, or other API key for `mode: local`.** oaklib talks to **ontology files on disk**. Remote adapters exist, but they are optional (`mode: ols` or `mode: bioportal`).
 
 Official documentation (read these first):
 

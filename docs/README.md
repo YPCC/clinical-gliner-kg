@@ -4,6 +4,7 @@ What this repository is, how the cascade is wired, how **oaklib** runs **locally
 
 | Page | What it covers |
 |---|---|
+| [Configuration](configuration.md) | YAML: LLM, GCP ADC, oaklib local vs API, GLiNER local vs hosted |
 | [Overview](overview.md) | Purpose, non-goals, who it is for |
 | [Architecture](architecture.md) | Cascade stages, mermaid diagrams, provenance |
 | [oaklib grounding](oaklib-grounding.md) | Local OBO / SQLite vs remote OLS/BioPortal |

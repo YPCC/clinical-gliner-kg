@@ -57,11 +57,17 @@ class PHIPolicyGate:
         ("ACCOUNT", r"\b(?:Acct|Account)\s*[:#]?\s*\d{4,}\b"),
     ]
 
-    def __init__(self, action: str = "tag", enable_gliner_pii: bool = False) -> None:
+    def __init__(
+        self,
+        action: str = "tag",
+        enable_gliner_pii: bool = False,
+        pii_model: str | None = None,
+    ) -> None:
         if action not in {"tag", "mask", "route"}:
             raise ValueError("action must be tag | mask | route")
         self.action = action
         self.enable_gliner_pii = enable_gliner_pii
+        self.pii_model = pii_model or os.getenv("GLINER_PII_MODEL", "fastino/gliner2-privacy-filter-PII-multi")
         self._pii_model = None
         if enable_gliner_pii:
             self._try_load_pii_model()
@@ -70,7 +76,7 @@ class PHIPolicyGate:
         try:
             from gliner2 import AutoExtractor
 
-            name = os.getenv("GLINER_PII_MODEL", "fastino/gliner2-privacy-filter-PII-multi")
+            name = self.pii_model
             self._pii_model = AutoExtractor.from_pretrained(name)
         except Exception:
             self._pii_model = None

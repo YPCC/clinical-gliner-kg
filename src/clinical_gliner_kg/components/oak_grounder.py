@@ -62,17 +62,32 @@ def _parse_curie(curie: str) -> tuple[str, str]:
 class OaklibGrounder:
     """Ground entity spans with oaklib adapters; degrade gracefully if unavailable."""
 
-    def __init__(self, adapters_by_label: dict[str, list[str]] | None = None) -> None:
+    def __init__(
+        self,
+        adapters_by_label: dict[str, list[str]] | None = None,
+        *,
+        mode: str | None = None,
+        eager: bool | None = None,
+        selectors: list[str] | None = None,
+        bioportal_token_env: str = "BIOPORTAL_API_KEY",
+    ) -> None:
         extra = os.getenv("OAK_ADAPTERS", "").strip()
-        self.requested = adapters_by_label or DEFAULT_ADAPTERS
-        if extra:
+        self.mode = (mode or os.getenv("OAK_MODE") or "local").lower()
+        if selectors:
+            shared = selectors
+            self.requested = {label: shared for label in DEFAULT_ADAPTERS}
+        elif extra:
             shared = [item.strip() for item in extra.split(",") if item.strip()]
-            self.requested = {label: shared for label in self.requested}
+            self.requested = {label: shared for label in DEFAULT_ADAPTERS}
+        else:
+            self.requested = adapters_by_label or DEFAULT_ADAPTERS
         self._adapters: dict[str, list] = {}
         self.available: list[str] = []
-        # Defer heavy sqlite:obo:* downloads unless explicitly requested.
-        self._eager = os.getenv("OAK_EAGER", "0") == "1"
-        if self._eager:
+        self._eager = bool(eager) if eager is not None else os.getenv("OAK_EAGER", "0") == "1"
+        if self.mode == "bioportal" and not os.getenv(bioportal_token_env):
+            # Adapter would fail anyway; skip load so CI stays quiet.
+            return
+        if self._eager or self.mode in {"ols", "bioportal"}:
             self._load()
         else:
             self._load_lightweight()

@@ -51,17 +51,19 @@ def render_kg(kg) -> None:
     console.print(rel_table)
     console.print("\n[bold]Cypher mutations[/bold]")
     for query in kg.cypher_queries:
-        console.print(f"  {query.replace('[', '\\[')}")
+        safe = query.replace("[", "\\[")
+        console.print(f"  {safe}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", default="heuristic")
+    parser.add_argument("--config", type=Path, default=None, help="Path to config/pipeline.yaml")
     parser.add_argument("--all-notes", action="store_true")
     parser.add_argument("--dump-json", type=Path)
     args = parser.parse_args()
 
-    pipeline = ClinicalSemanticExtractionPipeline(backend=args.backend)
+    pipeline = ClinicalSemanticExtractionPipeline(backend=args.backend, config_path=args.config)
     if args.all_notes:
         notes = load_synthetic_clinical_notes()
     else:

@@ -70,6 +70,11 @@ class GLiNER25Backend:
         labels: list[str] | None = None,
         relations: list[str] | None = None,
         enable_joint: bool = False,
+        mode: str = "local",
+        hf_endpoint: str = "https://api-inference.huggingface.co/models",
+        hf_token_env: str = "HF_TOKEN",
+        pioneer_base_url: str = "https://api.pioneer.ai",
+        pioneer_token_env: str = "PIONEER_API_KEY",
     ) -> None:
         self.model_name = model_name or os.getenv("GLINER25_MODEL", "fastino/gliner2.5-small-v1")
         self.threshold = threshold
@@ -77,9 +82,15 @@ class GLiNER25Backend:
         self.labels = [label.lower() for label in (labels or DEFAULT_ENTITY_LABELS)]
         self.relations = relations or DEFAULT_RELATIONS
         self.enable_joint = enable_joint
+        self.mode = (mode or "local").lower()
+        self.hf_endpoint = hf_endpoint
+        self.hf_token_env = hf_token_env
+        self.pioneer_base_url = pioneer_base_url
+        self.pioneer_token_env = pioneer_token_env
         self._extractor = None
         self._joint = None
-        self._load()
+        if self.mode == "local":
+            self._load()
 
     def _load(self) -> None:
         try:
@@ -100,6 +111,29 @@ class GLiNER25Backend:
                 self._joint = None
 
     def extract(self, text: str) -> tuple[list[ClinicalEntity], list[ClinicalRelation]]:
+        if self.mode == "pioneer":
+            from clinical_gliner_kg.backends.hosted import extract_pioneer
+
+            return extract_pioneer(
+                text,
+                model=self.model_name,
+                labels=self.labels,
+                relations=self.relations if self.enable_relations else [],
+                base_url=self.pioneer_base_url,
+                token_env=self.pioneer_token_env,
+                threshold=self.threshold,
+            )
+        if self.mode in {"huggingface_api", "huggingface", "hf"}:
+            from clinical_gliner_kg.backends.hosted import extract_huggingface
+
+            return extract_huggingface(
+                text,
+                model=self.model_name,
+                labels=self.labels,
+                endpoint=self.hf_endpoint,
+                token_env=self.hf_token_env,
+                threshold=self.threshold,
+            )
         entities = self._extract_entities(text)
         relations = self._extract_relations(text, entities)
         return entities, relations

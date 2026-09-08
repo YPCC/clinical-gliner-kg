@@ -8,7 +8,7 @@ Cascaded clinical extraction plane:
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Docs:** [overview](docs/overview.md) · [architecture](docs/architecture.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md) · [infographics](docs/infographics.md) · [LinkedIn draft](docs/linkedin-post.md)
+**Docs:** [overview](docs/overview.md) · [configuration](docs/configuration.md) · [architecture](docs/architecture.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md) · [infographics](docs/infographics.md) · [LinkedIn draft](docs/linkedin-post.md)
 
 ---
 
@@ -124,7 +124,34 @@ pip install -e ".[all]"
 pip install -r requirements-full.txt
 ```
 
-Copy `.env.example` and set keys only if you want live spaCy-LLM or the Fastino hosted client. oaklib local adapters do **not** need those keys.
+## Configuration (LLM, GCP ADC, oaklib, GLiNER)
+
+All runtime modes live in [`config/pipeline.yaml`](config/pipeline.yaml). Secrets stay in the environment. Full reference: [docs/configuration.md](docs/configuration.md).
+
+```yaml
+gliner:
+  mode: local                 # local | huggingface_api | pioneer
+oaklib:
+  mode: local                 # local | ols | bioportal
+llm:
+  provider: none              # none | openai | azure_openai | vertex | anthropic
+  enable: false
+gcp:
+  use_adc: true
+  project: ""                 # GOOGLE_CLOUD_PROJECT
+  credentials_file: ""        # empty = ADC chain
+```
+
+```bash
+clinical-gliner --config config/pipeline.yaml --print-config
+export GLINER_MODE=pioneer          # hosted Fastino API (PIONEER_API_KEY)
+export OAK_MODE=ols                 # EBI OLS instead of local OBO
+export LLM_PROVIDER=vertex          # Gemini via GCP ADC
+export GOOGLE_CLOUD_PROJECT=my-proj
+gcloud auth application-default login
+```
+
+Copy `.env.example` for secret names. oaklib `mode: local` does **not** need keys.
 
 | Extra | What it enables |
 |---|---|

@@ -4,20 +4,28 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 from clinical_gliner_kg.pipeline import ClinicalSemanticExtractionPipeline
+from clinical_gliner_kg.settings import load_settings
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Cascaded clinical GLiNER → ontology → KG pipeline")
     parser.add_argument("text", nargs="?", help="Clinical text to extract")
-    parser.add_argument("--backend", default="auto", help="auto | gliner25 | gliner_spacy | heuristic")
+    parser.add_argument("--backend", default=None, help="auto | gliner25 | gliner_spacy | heuristic")
+    parser.add_argument("--config", type=Path, default=None, help="Path to pipeline.yaml")
+    parser.add_argument("--print-config", action="store_true", help="Print resolved settings (secrets redacted) and exit")
     parser.add_argument("--json", action="store_true", help="Print JSON-LD instead of a short summary")
     args = parser.parse_args(argv)
+    if args.print_config:
+        settings = load_settings(args.config)
+        print(json.dumps(settings.redacted(), indent=2))
+        return
     text = args.text or (
         "Patient with type 2 diabetes was started on metformin because HbA1c increased to 8.2%."
     )
-    pipeline = ClinicalSemanticExtractionPipeline(backend=args.backend)
+    pipeline = ClinicalSemanticExtractionPipeline(backend=args.backend, config_path=args.config)
     kg = pipeline.process_document(text, document_id="cli")
     if args.json:
         print(json.dumps(kg.model_dump(), indent=2))

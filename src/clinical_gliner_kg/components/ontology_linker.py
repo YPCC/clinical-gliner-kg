@@ -45,6 +45,10 @@ class OntologyValidationEngine:
         self,
         rules_path: Path | None = None,
         catalog_path: Path | None = None,
+        oak_selectors: list[str] | None = None,
+        oak_mode: str = "local",
+        oak_eager: bool = False,
+        bioportal_token_env: str = "BIOPORTAL_API_KEY",
     ) -> None:
         root = _repo_root()
         self.rules = self._load_json(rules_path or root / "config" / "ontology_rules.json", DEFAULT_RULES)
@@ -53,7 +57,10 @@ class OntologyValidationEngine:
             key.lower(): TerminologyLink(**value) if isinstance(value, dict) else value
             for key, value in raw_catalog.items()
         }
-        self.oak = OaklibGrounder()
+        oak_kwargs: dict = {"mode": oak_mode, "eager": oak_eager, "bioportal_token_env": bioportal_token_env}
+        if oak_selectors:
+            oak_kwargs["selectors"] = oak_selectors
+        self.oak = OaklibGrounder(**oak_kwargs)
 
     @staticmethod
     def _load_json(path: Path, fallback: dict) -> dict:

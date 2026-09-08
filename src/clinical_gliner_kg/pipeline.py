@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import os
+import os
 import uuid
 from pathlib import Path
-
-import yaml
 
 from clinical_gliner_kg.backends import resolve_backend
 from clinical_gliner_kg.components.llm_adjudicator import LLMAdjudicator
@@ -18,13 +17,12 @@ from clinical_gliner_kg.models import (
     ProvenanceMetadata,
     ValidationStatus,
 )
+from clinical_gliner_kg.settings import PipelineSettings, load_settings
 
 
 def load_config(path: Path | None = None) -> dict:
-    cfg_path = path or Path(__file__).resolve().parents[2] / "config" / "pipeline.yaml"
-    if cfg_path.exists():
-        return yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-    return {}
+    """Backward-compatible wrapper; prefer `load_settings`."""
+    return load_settings(path).model_dump()
 
 
 class ClinicalSemanticExtractionPipeline:
@@ -32,30 +30,63 @@ class ClinicalSemanticExtractionPipeline:
         self,
         backend: str | None = None,
         confidence_threshold: float | None = None,
-        phi_action: str = "tag",
-        enable_gliner_pii: bool = False,
-        enable_spacy_llm: bool = False,
-        config_path: Path | None = None,
+        phi_action: str | None = None,
+        enable_gliner_pii: bool | None = None,
+        enable_spacy_llm: bool | None = None,
+        config_path: Path | str | None = None,
         labels: list[str] | None = None,
         relations: list[str] | None = None,
         enable_relations: bool | None = None,
+        settings: PipelineSettings | None = None,
     ) -> None:
-        cfg = load_config(config_path)
-        backend_name = backend or os.getenv("CLINICAL_GLINER_BACKEND") or cfg.get("backend", "auto")
-        threshold = confidence_threshold if confidence_threshold is not None else float(cfg.get("confidence_threshold", 0.75))
+        cfg = settings or load_settings(config_path)
+        self.settings = cfg
+        backend_name = backend or cfg.backend
+        threshold = cfg.confidence_threshold if confidence_threshold is None else confidence_threshold
+        gliner = cfg.gliner
         backend_kwargs = {
-            "model_name": os.getenv("GLINER25_MODEL", cfg.get("gliner25_model")),
+            "model_name": gliner.model,
+            "threshold": gliner.threshold,
+            "enable_relations": gliner.enable_relations if enable_relations is None else enable_relations,
+            "enable_joint": gliner.enable_joint,
+            "mode": gliner.mode,
+            "hf_endpoint": gliner.huggingface.endpoint,
+            "hf_token_env": gliner.huggingface.token_env,
+            "pioneer_base_url": gliner.pioneer.base_url,
+            "pioneer_token_env": gliner.pioneer.token_env,
+            "labels": labels or [item.lower() for item in cfg.clinical_labels],
+            "relations": relations or list(cfg.relation_types),
         }
-        if labels:
-            backend_kwargs["labels"] = labels
-        if enable_relations is not None:
-            backend_kwargs["enable_relations"] = enable_relations
+        if backend_name == "gliner_spacy":
+            backend_kwargs = {"model_name": gliner.spacy.model, "threshold": gliner.threshold}
         self.extractor = resolve_backend(backend_name, **backend_kwargs)
-        self.phi_gate = PHIPolicyGate(action=phi_action or cfg.get("phi_action", "tag"), enable_gliner_pii=enable_gliner_pii)
-        self.ontology = OntologyValidationEngine()
-        self.adjudicator = LLMAdjudicator(confidence_threshold=threshold, enable_spacy_llm=enable_spacy_llm)
+        phi_on = cfg.phi.enable_gliner_pii if enable_gliner_pii is None else enable_gliner_pii
+        self.phi_gate = PHIPolicyGate(
+            action=phi_action or cfg.phi.action,
+            enable_gliner_pii=phi_on,
+            pii_model=gliner.pii_model,
+        )
+        self.ontology = OntologyValidationEngine(
+            oak_selectors=cfg.oak_selectors(),
+            oak_mode=cfg.oaklib.mode,
+            oak_eager=cfg.oaklib.eager,
+            bioportal_token_env=cfg.oaklib.bioportal.token_env,
+        )
+        llm_enable = cfg.llm.enable if enable_spacy_llm is None else enable_spacy_llm
+        self.adjudicator = LLMAdjudicator(
+            confidence_threshold=threshold,
+            enable_spacy_llm=llm_enable,
+            provider=cfg.llm.provider if llm_enable or cfg.llm.provider != "none" else "none",
+            openai_model=cfg.llm.openai.model,
+            vertex_model=cfg.llm.vertex.model,
+            vertex_location=cfg.gcp.location or cfg.llm.vertex.location,
+            gcp_project=cfg.gcp.project,
+            azure_endpoint=cfg.llm.azure_openai.endpoint,
+            azure_deployment=cfg.llm.azure_openai.deployment,
+            anthropic_model=cfg.llm.anthropic.model,
+        )
         self.emitter = GraphEmitter()
-        self.pipeline_version = str(cfg.get("pipeline_version", "0.1.0-cascaded"))
+        self.pipeline_version = cfg.pipeline_version
 
     def process_document(self, text: str, document_id: str | None = None) -> ClinicalKnowledgeGraph:
         doc_id = document_id or f"doc_{uuid.uuid4().hex[:8]}"

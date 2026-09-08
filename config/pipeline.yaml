@@ -1,10 +1,13 @@
-backend: auto
-confidence_threshold: 0.75
-phi_action: tag
-gliner25_model: fastino/gliner2.5-small-v1
-gliner_spacy_model: urchade/gliner_medium-v2.1
-pii_model: fastino/gliner2-privacy-filter-PII-multi
+# Clinical-GLiNER-KG runtime configuration.
+# Secrets are NEVER stored here. Put keys in the environment or use GCP ADC.
+# Override any field with env vars documented in docs/configuration.md.
+#
+# Resolution: CLI flag → environment → this file → library default.
+
 pipeline_version: 0.1.0-cascaded
+backend: auto                    # auto | gliner25 | gliner_spacy | heuristic
+confidence_threshold: 0.75
+
 clinical_labels:
   - Patient
   - Condition
@@ -14,6 +17,7 @@ clinical_labels:
   - Anatomy
   - Procedure
   - Provider
+
 relation_types:
   - HAS_CONDITION
   - TAKES
@@ -22,3 +26,100 @@ relation_types:
   - INDICATES
   - PERFORMED
   - HAS_ANATOMICAL_SITE
+
+# ---------------------------------------------------------------------------
+# GLiNER 2.5  — local weights vs hosted APIs
+# ---------------------------------------------------------------------------
+# mode:
+#   local            AutoExtractor.from_pretrained (HF Hub download, run on this box)
+#   huggingface_api  Hugging Face Inference API  (HF_TOKEN)
+#   pioneer          Fastino Pioneer hosted API  (PIONEER_API_KEY)
+gliner:
+  mode: local
+  model: fastino/gliner2.5-small-v1
+  device: cpu
+  threshold: 0.3
+  enable_relations: true
+  enable_joint: false
+  pii_model: fastino/gliner2-privacy-filter-PII-multi
+  huggingface:
+    endpoint: https://api-inference.huggingface.co/models
+    token_env: HF_TOKEN
+  pioneer:
+    base_url: https://api.pioneer.ai
+    token_env: PIONEER_API_KEY
+  spacy:
+    model: urchade/gliner_medium-v2.1
+
+# ---------------------------------------------------------------------------
+# oaklib — local ontology files vs remote APIs
+# ---------------------------------------------------------------------------
+# mode:
+#   local      simpleobo: / sqlite: files on disk. No API key.
+#   ols        EBI OLS4 HTTP adapter (network, no key)
+#   bioportal  NCBO BioPortal (BIOPORTAL_API_KEY)
+# eager: true also opens sqlite:obo:mondo-style Foundry snapshots (first call downloads).
+oaklib:
+  mode: local
+  eager: false
+  local:
+    adapters:
+      - simpleobo:data/ontologies/mini_clinical.obo
+      # - sqlite:/data/ontologies/mondo.db
+      # - simpleobo:/data/ontologies/chebi.obo
+  ols:
+    selectors:
+      - ols4:mondo
+      - ols4:chebi
+  bioportal:
+    token_env: BIOPORTAL_API_KEY
+    selectors:
+      - "bioportal:"
+
+
+# ---------------------------------------------------------------------------
+# LLM adjudication (exception path only)
+# ---------------------------------------------------------------------------
+# provider: none | openai | azure_openai | vertex | anthropic
+# enable: false keeps the heuristic adjudicator even if a key is present.
+llm:
+  provider: none
+  enable: false
+  openai:
+    model: gpt-4o-mini
+    token_env: OPENAI_API_KEY
+    temperature: 0.0
+  azure_openai:
+    endpoint: ""                 # or AZURE_OPENAI_ENDPOINT
+    deployment: ""
+    api_version: "2024-10-21"
+    token_env: AZURE_OPENAI_API_KEY
+  vertex:
+    model: gemini-2.0-flash
+    location: us-central1
+    temperature: 0.0
+  anthropic:
+    model: claude-3-5-sonnet-latest
+    token_env: ANTHROPIC_API_KEY
+
+# ---------------------------------------------------------------------------
+# Google Cloud Application Default Credentials (ADC)
+# ---------------------------------------------------------------------------
+# Used when llm.provider = vertex (and any future GCS/BigQuery sinks).
+# Leave credentials_file empty to use the ADC chain:
+#   1. GOOGLE_APPLICATION_CREDENTIALS
+#   2. gcloud auth application-default login  (~/.config/gcloud/application_default_credentials.json)
+#   3. GCE / GKE / Cloud Run metadata server
+gcp:
+  use_adc: true
+  project: ""                    # or GOOGLE_CLOUD_PROJECT
+  location: us-central1
+  credentials_file: ""           # path to service-account JSON; empty = ADC
+  quota_project: ""
+
+# ---------------------------------------------------------------------------
+# PHI / PII gate
+# ---------------------------------------------------------------------------
+phi:
+  action: tag                    # tag | mask | route
+  enable_gliner_pii: false

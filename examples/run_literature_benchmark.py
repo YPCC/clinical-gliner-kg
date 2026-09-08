@@ -99,6 +99,7 @@ def _score_phi() -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", default="auto")
+    parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=80, help="Docs per corpus (default 80 for a short spike)")
     parser.add_argument("--split", default="test")
     parser.add_argument("--out", type=Path)
@@ -107,6 +108,7 @@ def main() -> None:
     console.print(f"Available backends: {available_backends()}")
     pipeline = ClinicalSemanticExtractionPipeline(
         backend=args.backend,
+        config_path=args.config,
         labels=LITERATURE_LABELS,
         relations=LITERATURE_RELATIONS,
         enable_relations=True,
