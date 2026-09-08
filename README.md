@@ -2,21 +2,23 @@
 
 Cascaded clinical extraction plane:
 
-**GLiNER 2.5 → PHI gate → SNOMED/RxNorm/LOINC → spaCy-LLM only when needed → provenance-aware KG**
+**GLiNER 2.5 → PHI gate → oaklib (local ontologies) → spaCy-LLM only when needed → provenance-aware KG**
 
 [![CI](https://github.com/YPCC/clinical-gliner-kg/actions/workflows/ci.yml/badge.svg)](https://github.com/YPCC/clinical-gliner-kg/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+**Docs:** [overview](docs/overview.md) · [architecture](docs/architecture.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md) · [infographics](docs/infographics.md) · [LinkedIn draft](docs/linkedin-post.md)
+
 ---
 
 1. **GLiNER turns clinical text into structured entities + relationships** — without sending every document to an LLM.
 2. **Use it as a fast, high-recall extraction layer** for NER, PHI/PII, streaming events, and KG triples.
-3. **Ground outputs with oaklib + SNOMED CT / RxNorm / LOINC / MONDO** to improve precision.
+3. **Ground outputs with oaklib on local OBO / SQLite files** (plus a SNOMED / RxNorm / LOINC catalog). **No ontology API key is required.**
 4. **Escalate only ambiguous cases to an LLM** — improving accuracy while controlling latency, cost, and risk.
 5. **Result:** a continuously enriched, provenance-aware Healthcare Knowledge Graph for RAG, analytics, and AI agents.
 
-Footer: [GLiNER 2.5](https://github.com/fastino-ai/GLiNER2) · [Long-context demo](https://huggingface.co/spaces/fastino/gliner25-long-context) · [Classic GLiNER](https://github.com/urchade/GLiNER) · [gliner-spacy](https://github.com/theirstory/gliner-spacy) · [spaCy-LLM](https://github.com/explosion/spacy-llm) · [NAACL paper](https://aclanthology.org/2024.naacl-long.300/) · [Medical data catalog](https://github.com/YPCC/medical-data)
+Inspired by [GLiNER (NAACL 2024)](https://aclanthology.org/2024.naacl-long.300/), [GLiNER 2.5](https://github.com/fastino-ai/GLiNER2), [oaklib](https://incatools.github.io/ontology-access-kit/), [spaCy-LLM](https://github.com/explosion/spacy-llm), and the open NCBI Disease / BC5CDR corpora. Full reference list: [docs/bibliography.md](docs/bibliography.md).
 
 ---
 
@@ -24,37 +26,23 @@ Footer: [GLiNER 2.5](https://github.com/fastino-ai/GLiNER2) · [Long-context dem
 
 GLiNER 2.5 (Fastino boundary architecture) predicts entity spans directly, supports long context, joint entity–relation decoding, PII checkpoints, and CPU/ONNX-style deployment. That makes it a **lightweight semantic sensing tier** between raw notes / FHIR events and expensive domain models or LLMs.
 
-```
-Unstructured / streaming clinical text
-        │
-        ▼
-[1] GLiNER 2.5 + RelEx / gliner-spacy     high-recall candidates
-        │
-        ▼
-[2] PHI / PII policy gate                 regex → GLiNER PII → policy
-        │
-        ▼
-[3] Domain semantics                      RxNorm / SNOMED CT / LOINC
-        │                                 domain-range constraints
-        ▼
-[4] Confidence router
-   ├── high-confidence, valid ──────────────────────────┐
-   └── low-confidence or illegal relation               │
-                    │                                   │
-                    ▼                                   │
-           [5] spaCy-LLM adjudication                   │
-                    │                                   │
-                    └────────────────┬──────────────────┘
-                                     ▼
-                    [6] Provenance-aware KG
-                        Cypher · JSON-LD · Turtle
+![Cascade](docs/images/cascade-architecture.jpg)
+
+```mermaid
+flowchart LR
+  A[Unstructured / streaming clinical text] --> B[1 GLiNER 2.5 + RelEx]
+  B --> C[2 PHI / PII policy gate]
+  C --> D[3 Catalog + oaklib grounding]
+  D --> E[4 Confidence + domain-range router]
+  E -->|high confidence and valid| G[6 Provenance KG]
+  E -->|low confidence or illegal pair| F[5 spaCy-LLM adjudication]
+  F --> G
+  G --> H[Cypher · JSON-LD · Turtle]
 ```
 
 Reference sentence:
 
 > Patient with type 2 diabetes was started on metformin because HbA1c increased to 8.2%.
-
-Derived graph (after grounding + constraints):
 
 | Subject | Relation | Object | Grounding |
 |---|---|---|---|
@@ -67,14 +55,44 @@ A spurious candidate such as `metformin HAS_ANATOMICAL_SITE kidney` is **rejecte
 
 ---
 
+## oaklib runs locally (no API key)
+
+Grounding uses **[oaklib](https://incatools.github.io/ontology-access-kit/)** (Ontology Access Kit). The default path is **offline**:
+
+- Bundled `simpleobo:data/ontologies/mini_clinical.obo` — no download, no key
+- Optional `sqlite:obo:mondo` / `sqlite:obo:chebi` — **local SQLite after one Foundry fetch** into the pystow cache
+- Optional `simpleobo:/your/mondo.obo` or `sqlite:/your/chebi.db` — files you already have
+- OLS / BioPortal adapters exist in oaklib but are **not** the default (they send spans off-box and BioPortal needs `BIOPORTAL_API_KEY`)
+
+```python
+from oaklib import get_adapter
+adapter = get_adapter("simpleobo:data/ontologies/mini_clinical.obo")
+for ann in adapter.annotate_text("type 2 diabetes"):
+    print(ann.object_id, ann.object_label)  # MONDO:0005148
+```
+
+```bash
+export OAK_EAGER=1
+export OAK_ADAPTERS=sqlite:obo:mondo,sqlite:obo:chebi
+```
+
+You still need **the ontology files** (or the one-time `sqlite:obo:` snapshot). oaklib is not a hosted terminology service.
+
+Read: [docs/oaklib-grounding.md](docs/oaklib-grounding.md) · [OAK introduction](https://incatools.github.io/ontology-access-kit/introduction.html) · [FAQ: local files](https://incatools.github.io/ontology-access-kit/faq/general.html) · [SQLite adapter](https://incatools.github.io/ontology-access-kit/packages/implementations/sqldb.html) · [GitHub](https://github.com/INCATools/ontology-access-kit)
+
+---
+
 ## Repository map
 
 ```
 clinical-gliner-kg/
+├── docs/                   architecture, oaklib, bibliography, infographics, LinkedIn
 ├── config/                 pipeline.yaml, ontology rules, terminology catalog, spaCy-LLM cfg
 ├── src/clinical_gliner_kg/
 │   ├── backends/           GLiNER 2.5 · gliner-spacy · heuristic fallback
 │   ├── components/         PHI gate · oaklib grounder · ontology · LLM
+│   ├── graph/              Cypher / JSON-LD / Turtle emitter
+│   └── pipeline.py
 ├── data/
 │   ├── synthetic/          runnable gold notes + PHI examples
 │   ├── ontologies/         mini OBO used by oaklib simpleobo
@@ -98,7 +116,7 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-Full showcase stack (GLiNER 2.5, gliner-spacy, spaCy-LLM, RDF):
+Full showcase stack (GLiNER 2.5, gliner-spacy, spaCy-LLM, oaklib, RDF):
 
 ```bash
 pip install -e ".[all]"
@@ -106,7 +124,7 @@ pip install -e ".[all]"
 pip install -r requirements-full.txt
 ```
 
-Copy `.env.example` and set keys only if you want live spaCy-LLM or the Fastino hosted client.
+Copy `.env.example` and set keys only if you want live spaCy-LLM or the Fastino hosted client. oaklib local adapters do **not** need those keys.
 
 | Extra | What it enables |
 |---|---|
@@ -128,25 +146,12 @@ Backend selection (`--backend` or `CLINICAL_GLINER_BACKEND`):
 ## Run
 
 ```bash
-# Architect reference sentence
 python examples/run_pipeline.py --backend heuristic
-
-# All bundled synthetic notes
 python examples/run_pipeline.py --backend heuristic --all-notes
-
-# PHI / PII cascade on synthetic identifiers
 python examples/run_phi_benchmark.py
-
-# Emit Cypher + Turtle KG
 python examples/run_kg_demo.py --outdir outputs/kg
-
-# Live quality on bundled gold + planning matrix
 python examples/run_architecture_spike.py --backend heuristic
-
-# Catalog of open vs DUA evaluation sets
 python examples/list_open_datasets.py
-
-# One-liner CLI
 clinical-gliner "Patient with type 2 diabetes was started on metformin because HbA1c increased to 8.2%."
 ```
 
@@ -161,28 +166,9 @@ python examples/run_literature_benchmark.py --backend gliner25 --limit 30
 
 ---
 
-## oaklib grounding
+## Live GLiNER 2.5 spike (CPU)
 
-After the static RxNorm / SNOMED / LOINC table misses, `OaklibGrounder` calls oaklib `annotate_text` / `basic_search`.
-
-Default adapter is the bundled mini ontology so CI stays offline:
-
-```text
-simpleobo:data/ontologies/mini_clinical.obo
-```
-
-That grounds `type 2 diabetes` → `MONDO:0005148`. Full OBO Foundry snapshots:
-
-```bash
-export OAK_EAGER=1
-export OAK_ADAPTERS=sqlite:obo:mondo,sqlite:obo:chebi
-```
-
----
-
-## Live GLiNER 2.5 spike (CPU, this workspace)
-
-`fastino/gliner2.5-small-v1`, 30 test documents/corpus, exact-span F1 after hyphen/space normalization.
+`fastino/gliner2.5-small-v1`, 30 test documents/corpus, exact-span F1 after hyphen/space normalization. Details: [docs/evaluation.md](docs/evaluation.md).
 
 | Corpus | N | Entity P / R / F1 | Rel F1 | Ont. pass | Linked | P95 | docs/s | Planning $ / 100k |
 |---|---|---|---|---|---|---|---|---|
@@ -195,55 +181,32 @@ export OAK_ADAPTERS=sqlite:obo:mondo,sqlite:obo:chebi
 
 This is a generalist 74M encoder used zero-shot, not a BioBERT number. Next levers: `gliner2.5-base-v1`, biomedical fine-tune, document-level NCBI reconstruction, and `sqlite:obo:mondo`.
 
+![Cost planning matrix](docs/images/cost-planning-matrix.jpg)
+
 ---
 
 ## Benchmarks and data policy
 
-This repo **does not ship n2c2, i2b2, or MIMIC notes**. Those corpora require a Data Use Agreement and must not be pushed to GitHub. The parent index is [YPCC/medical-data](https://github.com/YPCC/medical-data).
+This repo **does not ship n2c2, i2b2, or MIMIC notes**. See [docs/data-policy.md](docs/data-policy.md) and [YPCC/medical-data](https://github.com/YPCC/medical-data).
 
-| Dataset | Access | Role here |
-|---|---|---|
-| Bundled synthetic clinical notes | open | default NER / RE / KG demo |
-| Bundled synthetic PHI notes | open | default PHI gate benchmark |
-| [ASQ-PHI](https://data.mendeley.com/datasets/csz5dzp7nx/1) | open (MIT, synthetic) | recommended extra PHI set |
-| [NCBI Disease](https://www.ncbi.nlm.nih.gov/research/bionlp/Data/disease/) | open | literature disease NER |
-| [BC5CDR](https://biocreative.bioinformatics.udel.edu/tasks/biocreative-v/track-3-cdr/) | open | chemical / disease NER + relations |
-| [BioRED](https://ftp.ncbi.nlm.nih.gov/pub/lu/BC8-BioRED-track/) | open | document-level triples |
-| n2c2 / i2b2 de-id and concept tasks | DUA | official portal only |
-| MIMIC-III / IV | DUA / PhysioNet | official portal only |
-
-`examples/run_architecture_spike.py` measures **live** precision/recall on the bundled gold set. The all-LLM vs GLiNER vs cascade cost/latency table is an **operations planning matrix**, not a vendor invoice. Re-run with `--backend gliner25` on NCBI Disease / BC5CDR locally once those files are downloaded.
-
-Suggested official metrics for a later spike: entity P/R/F1, relation F1, graph-validity rate (ontology pass %), terminology-link accuracy, PHI recall + over-redaction, p95 latency, docs/sec, cost/document.
+`examples/run_architecture_spike.py` measures **live** precision/recall on the bundled gold set. The all-LLM vs GLiNER vs cascade table is an **operations planning matrix**, not a vendor invoice.
 
 ---
 
 ## PHI / PII path
 
+```mermaid
+flowchart LR
+  R[Regex detectors] --> P[Optional GLiNER PII]
+  P --> A{Policy: tag / mask / route}
+  A --> G[Emitter drops PHI nodes]
 ```
-Regex / deterministic detectors
-        → GLiNER PII checkpoint (optional: fastino/gliner2-privacy-filter-PII-multi)
-        → policy action: tag | mask | route
-        → HIPAA policy controls before any downstream store or LLM call
-```
-
-The graph emitter drops PHI nodes and rejected relations so identifiers do not leak into Cypher or Turtle artifacts.
-
----
-
-## Provenance written on every assertion
-
-- source document id and character offsets
-- extracting backend / checkpoint name
-- confidence
-- terminology system + code when linked
-- validation status: `VALIDATED` · `ESCALATED_TO_LLM` · `ADJUDICATED` · `REJECTED`
 
 ---
 
 ## Architecture notes
 
-GLiNER 2.5 uses a boundary decoder rather than enumerating bounded candidate spans, which is the reason long-span clinical entities and long notes are in scope. Joint IE (`gliner2.joint_ie.JointIE`) is used when the installed checkpoint exposes it; otherwise entity extraction and `extract_relations` run as two calls on the same `AutoExtractor`.
+GLiNER 2.5 uses a boundary decoder rather than enumerating bounded candidate spans, which is why long-span clinical entities and long notes are in scope. Joint IE (`gliner2.joint_ie.JointIE`) is used when the checkpoint exposes it; otherwise entity extraction and `extract_relations` run as two calls on the same `AutoExtractor`.
 
 spaCy remains the orchestration surface: blank `en` pipeline, `gliner_spacy` factory for classic checkpoints, `spacy-llm` `NER.v3` only on the escalation branch.
 
@@ -253,4 +216,4 @@ This is a reference implementation for a technical spike, not a certified medica
 
 ## License
 
-Apache 2.0. Model weights keep their upstream licenses (GLiNER / Fastino Apache 2.0 at time of writing — verify before redistribution).
+Apache 2.0. Model weights keep their upstream licenses (GLiNER / Fastino Apache 2.0 at time of writing — verify before redistribution). Cite the [bibliography](docs/bibliography.md) if you reuse the cascade in a paper.
