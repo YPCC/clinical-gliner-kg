@@ -1,0 +1,97 @@
+# Copy-ready overlay: hosted APIs + API keys in the environment.
+#   cp config/pipeline.api-keys.example.yaml config/pipeline.local.yaml
+#   cp .env.example .env   # then fill PIONEER_API_KEY, OPENAI_API_KEY, BIOPORTAL_API_KEY
+#   set -a && source .env && set +a
+#   clinical-gliner --config config/pipeline.local.yaml --print-config
+#
+# Do NOT put secret values in this file. token_env names the environment variable.
+
+pipeline_version: 0.1.0-cascaded
+backend: gliner25
+confidence_threshold: 0.75
+
+clinical_labels:
+  - Patient
+  - Condition
+  - Medication
+  - Laboratory_Test
+  - Laboratory_Result
+  - Anatomy
+  - Procedure
+  - Provider
+
+relation_types:
+  - HAS_CONDITION
+  - TAKES
+  - TREATS
+  - HAS_VALUE
+  - INDICATES
+  - PERFORMED
+  - HAS_ANATOMICAL_SITE
+
+# Hosted Fastino Pioneer GLiNER (PIONEER_API_KEY).
+# Switch to huggingface_api + HF_TOKEN if you prefer Hugging Face Inference.
+gliner:
+  mode: pioneer
+  model: fastino/gliner2.5-small-v1
+  device: cpu
+  threshold: 0.3
+  enable_relations: true
+  enable_joint: false
+  pii_model: fastino/gliner2-privacy-filter-PII-multi
+  huggingface:
+    endpoint: https://api-inference.huggingface.co/models
+    token_env: HF_TOKEN
+  pioneer:
+    base_url: https://api.pioneer.ai
+    token_env: PIONEER_API_KEY
+  spacy:
+    model: urchade/gliner_medium-v2.1
+
+# BioPortal annotator (BIOPORTAL_API_KEY). Use mode: ols if you want EBI OLS (no key).
+oaklib:
+  mode: bioportal
+  eager: false
+  local:
+    adapters:
+      - simpleobo:data/ontologies/mini_clinical.obo
+  ols:
+    selectors:
+      - ols4:mondo
+      - ols4:chebi
+  bioportal:
+    token_env: BIOPORTAL_API_KEY
+    selectors:
+      - "bioportal:"
+
+# spaCy-LLM / OpenAI only on low-confidence or illegal relations (OPENAI_API_KEY).
+llm:
+  provider: openai
+  enable: true
+  openai:
+    model: gpt-4o-mini
+    token_env: OPENAI_API_KEY
+    temperature: 0.0
+  azure_openai:
+    endpoint: ""
+    deployment: ""
+    api_version: "2024-10-21"
+    token_env: AZURE_OPENAI_API_KEY
+  vertex:
+    model: gemini-2.0-flash
+    location: us-central1
+    temperature: 0.0
+  anthropic:
+    model: claude-3-5-sonnet-latest
+    token_env: ANTHROPIC_API_KEY
+
+gcp:
+  use_adc: true
+  project: ""
+  location: us-central1
+  credentials_file: ""
+  quota_project: ""
+
+phi:
+  action: tag
+  enable_gliner_pii: false

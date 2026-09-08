@@ -86,8 +86,8 @@ Read: [docs/oaklib-grounding.md](docs/oaklib-grounding.md) · [OAK introduction]
 
 ```
 clinical-gliner-kg/
-├── docs/                   architecture, oaklib, bibliography, infographics, LinkedIn
-├── config/                 pipeline.yaml, ontology rules, terminology catalog, spaCy-LLM cfg
+├── docs/                   how to use the config, architecture, oaklib, bibliography
+├── config/                 pipeline.yaml + API-key example overlay
 ├── src/clinical_gliner_kg/
 │   ├── backends/           GLiNER 2.5 · gliner-spacy · heuristic fallback
 │   ├── components/         PHI gate · oaklib grounder · ontology · LLM
@@ -124,34 +124,80 @@ pip install -e ".[all]"
 pip install -r requirements-full.txt
 ```
 
-## Configuration (LLM, GCP ADC, oaklib, GLiNER)
+## How to use the config file
 
-All runtime modes live in [`config/pipeline.yaml`](config/pipeline.yaml). Secrets stay in the environment. Full reference: [docs/configuration.md](docs/configuration.md).
+Modes live in YAML. **Keys live in the environment.** Full walkthrough: [docs/configuration.md](docs/configuration.md).
+
+```
+CLI flag → env var → config/pipeline.yaml → default
+```
+
+### Local (default, no keys)
+
+[`config/pipeline.yaml`](config/pipeline.yaml) already does this:
 
 ```yaml
-gliner:
-  mode: local                 # local | huggingface_api | pioneer
-oaklib:
-  mode: local                 # local | ols | bioportal
-llm:
-  provider: none              # none | openai | azure_openai | vertex | anthropic
-  enable: false
-gcp:
-  use_adc: true
-  project: ""                 # GOOGLE_CLOUD_PROJECT
-  credentials_file: ""        # empty = ADC chain
+gliner:  { mode: local }       # weights on this box
+oaklib:  { mode: local }       # bundled mini OBO, no API
+llm:     { provider: none, enable: false }
 ```
 
 ```bash
 clinical-gliner --config config/pipeline.yaml --print-config
-export GLINER_MODE=pioneer          # hosted Fastino API (PIONEER_API_KEY)
-export OAK_MODE=ols                 # EBI OLS instead of local OBO
-export LLM_PROVIDER=vertex          # Gemini via GCP ADC
-export GOOGLE_CLOUD_PROJECT=my-proj
-gcloud auth application-default login
+python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic
 ```
 
-Copy `.env.example` for secret names. oaklib `mode: local` does **not** need keys.
+### API-key example (Pioneer + OpenAI + BioPortal)
+
+Copy the overlay, put secrets in `.env`, never in YAML.
+
+1. YAML — [`config/pipeline.api-keys.example.yaml`](config/pipeline.api-keys.example.yaml) (committed, **no secrets**):
+
+```yaml
+backend: gliner25
+gliner:
+  mode: pioneer                 # Fastino hosted GLiNER
+  pioneer:
+    token_env: PIONEER_API_KEY  # name of the env var, not the key
+oaklib:
+  mode: bioportal
+  bioportal:
+    token_env: BIOPORTAL_API_KEY
+llm:
+  provider: openai
+  enable: true
+  openai:
+    model: gpt-4o-mini
+    token_env: OPENAI_API_KEY
+```
+
+2. `.env` — the actual keys:
+
+```bash
+cp config/pipeline.api-keys.example.yaml config/pipeline.local.yaml
+cp .env.example .env
+```
+
+```bash
+PIONEER_API_KEY=pk_live_replace_me     # https://docs.pioneer.ai/authentication
+OPENAI_API_KEY=sk-replace_me           # https://platform.openai.com/api-keys
+BIOPORTAL_API_KEY=replace_me           # https://bioportal.bioontology.org/account
+```
+
+3. Run:
+
+```bash
+set -a && source .env && set +a
+clinical-gliner --config config/pipeline.local.yaml --print-config
+python examples/run_pipeline.py --config config/pipeline.local.yaml --backend gliner25
+```
+
+`--print-config` reports only whether each secret is *set*, never the value.
+
+Hugging Face instead of Pioneer: `gliner.mode: huggingface_api` and `HF_TOKEN`.  
+Vertex instead of OpenAI: `llm.provider: vertex` and GCP ADC (`gcloud auth application-default login`) — no API key. See [docs/configuration.md](docs/configuration.md).
+
+Copy `.env.example` for the full list of secret names. oaklib `mode: local` does **not** need keys.
 
 | Extra | What it enables |
 |---|---|
@@ -173,13 +219,14 @@ Backend selection (`--backend` or `CLINICAL_GLINER_BACKEND`):
 ## Run
 
 ```bash
-python examples/run_pipeline.py --backend heuristic
-python examples/run_pipeline.py --backend heuristic --all-notes
+python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic
+python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic --all-notes
 python examples/run_phi_benchmark.py
-python examples/run_kg_demo.py --outdir outputs/kg
-python examples/run_architecture_spike.py --backend heuristic
+python examples/run_kg_demo.py --config config/pipeline.yaml --outdir outputs/kg
+python examples/run_architecture_spike.py --config config/pipeline.yaml --backend heuristic
 python examples/list_open_datasets.py
-clinical-gliner "Patient with type 2 diabetes was started on metformin because HbA1c increased to 8.2%."
+clinical-gliner --config config/pipeline.yaml \
+  "Patient with type 2 diabetes was started on metformin because HbA1c increased to 8.2%."
 ```
 
 After installing the full stack:

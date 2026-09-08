@@ -80,3 +80,14 @@ def test_pipeline_accepts_config_path():
         document_id="cfg",
     )
     assert kg.entities
+
+
+def test_api_keys_example_yaml_loads():
+    path = Path(__file__).resolve().parents[1] / "config" / "pipeline.api-keys.example.yaml"
+    settings = load_settings(path)
+    assert settings.gliner.mode == "pioneer"
+    assert settings.gliner.pioneer.token_env == "PIONEER_API_KEY"
+    assert settings.oaklib.mode == "bioportal"
+    assert settings.llm.provider == "openai"
+    assert settings.llm.enable is True
+    assert "sk-" not in str(settings.redacted())

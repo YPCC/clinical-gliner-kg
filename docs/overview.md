@@ -12,6 +12,8 @@ Most clinical notes do not need an LLM on every token. A small, zero-shot encode
 
 ## What you can run today
 
+Drive it with [`config/pipeline.yaml`](../config/pipeline.yaml). API-key walkthrough: [configuration.md](configuration.md).
+
 - Heuristic backend (CI, no weights)
 - Fastino `fastino/gliner2.5-small-v1` when `gliner2[local]` is installed
 - Classic GLiNER via `gliner-spacy`

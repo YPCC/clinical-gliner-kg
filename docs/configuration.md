@@ -1,125 +1,208 @@
-# Configuration
+# How to use `config/pipeline.yaml`
 
-One file drives runtime choices: [`config/pipeline.yaml`](../config/pipeline.yaml).
+One YAML file selects **local vs API** for GLiNER, oaklib, and the LLM.  
+**API keys never go in YAML.** They live in the environment (or GCP ADC). The YAML only names which env var to read (`token_env`).
 
-**Secrets never go in YAML.** Keys live in the environment. Google auth uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
+```
+CLI flag  →  environment variable  →  YAML  →  library default
+```
+
+String values expand `$VAR` / `${VAR}`.
+
+## 1. Choose a file
+
+| File | Intent |
+|---|---|
+| [`config/pipeline.yaml`](../config/pipeline.yaml) | Default local / offline demo |
+| [`config/pipeline.api-keys.example.yaml`](../config/pipeline.api-keys.example.yaml) | Hosted Pioneer + OpenAI + BioPortal |
 
 ```bash
-python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic
+# inspect what the process will actually use (secret values are redacted)
 clinical-gliner --config config/pipeline.yaml --print-config
 ```
 
-Resolution for each field: **CLI flag → environment variable → YAML → library default.**
+## 2. Local (no keys) — default
 
-`$VAR` / `${VAR}` in string values are expanded.
+This is already `config/pipeline.yaml`:
 
-## Modes at a glance
+```yaml
+backend: auto
+gliner:
+  mode: local                          # weights on this box
+oaklib:
+  mode: local                          # bundled mini OBO
+llm:
+  provider: none
+  enable: false
+```
 
-| Layer | Local (default) | Hosted / API |
-|---|---|---|
-| GLiNER | `gliner.mode: local` — weights on this box | `huggingface_api` (`HF_TOKEN`) or `pioneer` (`PIONEER_API_KEY`) |
-| oaklib | `oaklib.mode: local` — OBO / SQLite files | `ols` (EBI OLS4) or `bioportal` (`BIOPORTAL_API_KEY`) |
-| LLM | `llm.provider: none` | `openai` / `azure_openai` / `vertex` (ADC) / `anthropic` |
-| GCP | ADC file on disk or metadata server | — |
+```bash
+python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic
+```
 
-## GLiNER
+oaklib still needs **ontology files on disk**, not an API. See [oaklib-grounding.md](oaklib-grounding.md).
+
+## 3. API-key example (Pioneer + OpenAI + BioPortal)
+
+Copy the example overlay, put keys in `.env`, then point `--config` at the copy.
+
+### YAML (`config/pipeline.api-keys.example.yaml`)
+
+```yaml
+backend: gliner25
+
+gliner:
+  mode: pioneer                        # Fastino hosted GLiNER
+  model: fastino/gliner2.5-small-v1
+  pioneer:
+    base_url: https://api.pioneer.ai
+    token_env: PIONEER_API_KEY         # name of the env var, not the key
+
+oaklib:
+  mode: bioportal                      # NCBO annotator (sends spans off-box)
+  bioportal:
+    token_env: BIOPORTAL_API_KEY
+    selectors:
+      - "bioportal:"
+
+llm:
+  provider: openai
+  enable: true                         # both enable and a key are required
+  openai:
+    model: gpt-4o-mini
+    token_env: OPENAI_API_KEY
+```
+
+### `.env` (the actual keys)
+
+```bash
+cp config/pipeline.api-keys.example.yaml config/pipeline.local.yaml
+cp .env.example .env
+```
+
+Edit `.env` (never commit it):
+
+```bash
+# GLiNER hosted — https://docs.pioneer.ai/authentication
+PIONEER_API_KEY=pk_live_replace_me
+
+# LLM exception path — https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-replace_me
+LLM_ENABLE=1
+LLM_PROVIDER=openai
+
+# oaklib BioPortal — https://bioportal.bioontology.org/account
+BIOPORTAL_API_KEY=replace_me
+
+OAK_MODE=bioportal
+GLINER_MODE=pioneer
+CLINICAL_GLINER_BACKEND=gliner25
+```
+
+### Run
+
+```bash
+set -a && source .env && set +a
+
+clinical-gliner --config config/pipeline.local.yaml --print-config
+# secrets.PIONEER_API_KEY / OPENAI_API_KEY / BIOPORTAL_API_KEY should be true
+
+python examples/run_pipeline.py \
+  --config config/pipeline.local.yaml \
+  --backend gliner25
+
+clinical-gliner --config config/pipeline.local.yaml \
+  "Patient with type 2 diabetes was started on metformin because HbA1c increased to 8.2%."
+```
+
+If `--print-config` shows a secret as `false`, the process cannot see the env var (you forgot `source .env`, or the name does not match `token_env`).
+
+### Hugging Face instead of Pioneer
+
+Same pattern; only GLiNER changes:
 
 ```yaml
 gliner:
-  mode: local                 # local | huggingface_api | pioneer
+  mode: huggingface_api
   model: fastino/gliner2.5-small-v1
+  huggingface:
+    endpoint: https://api-inference.huggingface.co/models
+    token_env: HF_TOKEN
 ```
 
-| mode | What happens | Secret |
-|---|---|---|
-| `local` | `AutoExtractor.from_pretrained` (Hub download, CPU/GPU here) | optional `HF_TOKEN` for gated repos |
-| `huggingface_api` | POST to Hugging Face Inference API | `HF_TOKEN` |
-| `pioneer` | Fastino Pioneer `POST https://api.pioneer.ai/inference` | `PIONEER_API_KEY` |
-
-Env aliases: `GLINER_MODE`, `GLINER25_MODEL`, `GLINER_SPACY_MODEL`, `GLINER_PII_MODEL`.
-
-## oaklib (local files vs API)
-
-Default is **offline**. You need ontology *files*, not an API key. See [oaklib-grounding.md](oaklib-grounding.md) and the [OAK docs](https://incatools.github.io/ontology-access-kit/).
-
-```yaml
-oaklib:
-  mode: local                 # local | ols | bioportal
-  eager: false
-  local:
-    adapters:
-      - simpleobo:data/ontologies/mini_clinical.obo
-      # - sqlite:/data/ontologies/mondo.db
+```bash
+export GLINER_MODE=huggingface_api
+export HF_TOKEN=hf_replace_me
 ```
 
-| mode | Network | Key |
-|---|---|---|
-| `local` | no (unless a selector is `sqlite:obo:` and `eager: true`) | none |
-| `ols` | yes (EBI OLS4) | none |
-| `bioportal` | yes | `BIOPORTAL_API_KEY` |
+Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). Not every GLiNER checkpoint exposes a working Inference API; Pioneer is the supported hosted path.
 
-`OAK_MODE`, `OAK_EAGER=1`, `OAK_ADAPTERS=simpleobo:/data/mondo.obo,sqlite:/data/chebi.db`.
+## 4. Vertex on GCP (ADC, no API key)
 
-## LLM
+YAML selects Vertex; Google auth is Application Default Credentials, not an `API_KEY` env var.
 
 ```yaml
 llm:
-  provider: none              # none | openai | azure_openai | vertex | anthropic
-  enable: false
-  openai:
-    model: gpt-4o-mini
+  provider: vertex
+  enable: true
   vertex:
     model: gemini-2.0-flash
     location: us-central1
+gcp:
+  use_adc: true
+  project: my-gcp-project
+  credentials_file: ""                 # empty = ADC chain
 ```
 
-`enable: true` and a reachable credential are both required before spaCy-LLM / Vertex actually run. Otherwise the heuristic adjudicator stays in charge.
+```bash
+gcloud auth application-default login
+export GOOGLE_CLOUD_PROJECT=my-gcp-project
+export LLM_PROVIDER=vertex
+export LLM_ENABLE=1
+clinical-gliner --config config/pipeline.yaml --print-config
+```
 
-| provider | Auth |
+ADC search order: `gcp.credentials_file` → `GOOGLE_APPLICATION_CREDENTIALS` → `gcloud auth application-default login` → GCE/GKE/Cloud Run metadata. Docs: [ADC](https://cloud.google.com/docs/authentication/application-default-credentials) · [Vertex AI auth](https://cloud.google.com/vertex-ai/docs/authentication).
+
+## 5. What each mode means
+
+### GLiNER
+
+| `gliner.mode` | What happens | Secret |
+|---|---|---|
+| `local` | `AutoExtractor.from_pretrained` on this box | optional `HF_TOKEN` for gated Hub repos |
+| `huggingface_api` | POST Hugging Face Inference API | `HF_TOKEN` |
+| `pioneer` | POST `https://api.pioneer.ai/inference` | `PIONEER_API_KEY` |
+
+Env: `GLINER_MODE`, `GLINER25_MODEL`, `GLINER_SPACY_MODEL`, `GLINER_PII_MODEL`.
+
+### oaklib
+
+| `oaklib.mode` | Network | Key |
+|---|---|---|
+| `local` | no (unless `eager: true` and `sqlite:obo:`) | none — you need the OBO/SQLite **files** |
+| `ols` | EBI OLS4 | none |
+| `bioportal` | NCBO BioPortal | `BIOPORTAL_API_KEY` |
+
+Env: `OAK_MODE`, `OAK_EAGER=1`, `OAK_ADAPTERS=simpleobo:/data/mondo.obo,sqlite:/data/chebi.db`.
+
+Official OAK docs: [home](https://incatools.github.io/ontology-access-kit/) · [local files FAQ](https://incatools.github.io/ontology-access-kit/faq/general.html).
+
+### LLM
+
+`enable: true` **and** a reachable credential are both required. Otherwise the heuristic adjudicator stays in charge.
+
+| `llm.provider` | Auth |
 |---|---|
 | `none` | — |
 | `openai` | `OPENAI_API_KEY` |
-| `azure_openai` | `AZURE_OPENAI_API_KEY` + endpoint/deployment |
-| `vertex` | **GCP ADC** (below) + `gcp.project` |
+| `azure_openai` | `AZURE_OPENAI_API_KEY` + endpoint / deployment |
+| `vertex` | GCP ADC + `gcp.project` |
 | `anthropic` | `ANTHROPIC_API_KEY` |
 
-`LLM_PROVIDER`, `LLM_ENABLE=1`, `OPENAI_MODEL`.
+Env: `LLM_PROVIDER`, `LLM_ENABLE=1`, `OPENAI_MODEL`.
 
-## GCP Application Default Credentials
-
-Used when `llm.provider: vertex` (and any later GCS sink).
-
-```yaml
-gcp:
-  use_adc: true
-  project: my-gcp-project          # or GOOGLE_CLOUD_PROJECT
-  location: us-central1
-  credentials_file: ""             # empty = ADC chain
-  quota_project: ""
-```
-
-ADC search order (Google’s, not ours):
-
-1. `credentials_file` in YAML, if set → exported as `GOOGLE_APPLICATION_CREDENTIALS`
-2. `GOOGLE_APPLICATION_CREDENTIALS` already in the environment
-3. User ADC from `gcloud auth application-default login`
-4. GCE / GKE / Cloud Run metadata server
-
-```bash
-# Workstation
-gcloud auth application-default login
-gcloud config set project my-gcp-project
-
-# Service account on a VM / in CI
-export GOOGLE_APPLICATION_CREDENTIALS=/var/secrets/sa.json
-export GOOGLE_CLOUD_PROJECT=my-gcp-project
-```
-
-Docs: [ADC](https://cloud.google.com/docs/authentication/application-default-credentials) · [Vertex AI auth](https://cloud.google.com/vertex-ai/docs/authentication).
-
-The pipeline calls `google.auth.default()` only when `llm.provider` is `vertex`; it does not invent a second credential mechanism.
-
-## PHI
+### PHI
 
 ```yaml
 phi:
@@ -127,12 +210,19 @@ phi:
   enable_gliner_pii: false
 ```
 
-`PHI_ACTION`. PII weights follow `gliner.mode` (local vs Pioneer vs HF).
+`PHI_ACTION`. PII weights follow `gliner.mode`.
 
-## Print the resolved config
+## 6. Pass `--config` from examples
 
 ```bash
-clinical-gliner --print-config
+python examples/run_pipeline.py --config config/pipeline.local.yaml --backend gliner25
+python examples/run_kg_demo.py --config config/pipeline.local.yaml --outdir outputs/kg
+python examples/run_architecture_spike.py --config config/pipeline.local.yaml
+python examples/run_literature_benchmark.py --config config/pipeline.local.yaml --backend gliner25 --limit 30
 ```
 
-Secret *values* are never printed; only whether the env var is set.
+## 7. Safety
+
+- Clinical spans leave the box when `gliner.mode` is `pioneer` / `huggingface_api` or `oaklib.mode` is `ols` / `bioportal`.
+- Keep PHI notes on `gliner.mode: local` and `oaklib.mode: local` unless you have a BAA with the vendor.
+- `.gitignore` already ignores `.env` and `config/pipeline.local.yaml` if you add the latter — still do not paste keys into git.
