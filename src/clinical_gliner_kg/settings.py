@@ -13,14 +13,22 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = REPO_ROOT / "config" / "pipeline.yaml"
 
 GlinerMode = Literal["local", "huggingface_api", "pioneer"]
 OakMode = Literal["local", "ols", "bioportal"]
-LLMProvider = Literal["none", "openai", "azure_openai", "vertex", "anthropic"]
+LLMProvider = Literal[
+    "none",
+    "openai",
+    "openai_compat",
+    "azure_openai",
+    "google",
+    "vertex",
+    "anthropic",
+]
 BackendName = Literal["auto", "gliner25", "gliner_spacy", "heuristic"]
 
 
@@ -109,6 +117,7 @@ class OpenAISettings(BaseModel):
     model: str = "gpt-4o-mini"
     token_env: str = "OPENAI_API_KEY"
     temperature: float = 0.0
+    base_url: str = "https://api.openai.com/v1"
 
 
 class AzureOpenAISettings(BaseModel):
@@ -118,10 +127,36 @@ class AzureOpenAISettings(BaseModel):
     token_env: str = "AZURE_OPENAI_API_KEY"
 
 
+class GoogleAPISettings(BaseModel):
+    """Gemini via API key (not Vertex ADC).
+
+    Uses Google's OpenAI-compatible endpoint:
+    https://generativelanguage.googleapis.com/v1beta/openai/
+    Key: GOOGLE_API_KEY or GEMINI_API_KEY.
+    """
+
+    model: str = "gemini-2.0-flash"
+    token_env: str = "GOOGLE_API_KEY"
+    temperature: float = 0.0
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
 class VertexSettings(BaseModel):
     model: str = "gemini-2.0-flash"
     location: str = "us-central1"
     temperature: float = 0.0
+
+
+class OpenAICompatSettings(BaseModel):
+    """Any OpenAI Chat Completions compatible server.
+
+    Examples: Groq, Together, Fireworks, vLLM, Ollama, LiteLLM, Pioneer /v1.
+    """
+
+    model: str = "gpt-4o-mini"
+    token_env: str = "OPENAI_API_KEY"
+    temperature: float = 0.0
+    base_url: str = "https://api.openai.com/v1"
 
 
 class AnthropicSettings(BaseModel):
@@ -133,9 +168,25 @@ class LLMSettings(BaseModel):
     provider: LLMProvider = "none"
     enable: bool = False
     openai: OpenAISettings = Field(default_factory=OpenAISettings)
+    openai_compat: OpenAICompatSettings = Field(default_factory=OpenAICompatSettings)
     azure_openai: AzureOpenAISettings = Field(default_factory=AzureOpenAISettings)
+    google: GoogleAPISettings = Field(default_factory=GoogleAPISettings)
     vertex: VertexSettings = Field(default_factory=VertexSettings)
     anthropic: AnthropicSettings = Field(default_factory=AnthropicSettings)
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _alias_provider(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        aliases = {
+            "gemini": "google",
+            "google_api": "google",
+            "openai-compatible": "openai_compat",
+            "openai_compatible": "openai_compat",
+            "compatible": "openai_compat",
+        }
+        return aliases.get(value.lower(), value.lower())
 
 
 class GCPSettings(BaseModel):
@@ -211,7 +262,9 @@ class PipelineSettings(BaseModel):
             "BIOPORTAL_API_KEY": self.secret_present("BIOPORTAL_API_KEY"),
             "ANTHROPIC_API_KEY": self.secret_present("ANTHROPIC_API_KEY"),
             "AZURE_OPENAI_API_KEY": self.secret_present("AZURE_OPENAI_API_KEY"),
+            "GOOGLE_API_KEY": self.secret_present("GOOGLE_API_KEY") or self.secret_present("GEMINI_API_KEY"),
             "GOOGLE_APPLICATION_CREDENTIALS": bool(self.gcp.credentials_file or _env("GOOGLE_APPLICATION_CREDENTIALS")),
+            self.llm.openai_compat.token_env: self.secret_present(self.llm.openai_compat.token_env),
         }
         return data
 
@@ -277,11 +330,17 @@ def _overlay_env(raw: dict[str, Any]) -> dict[str, Any]:
     if extra:
         oak.setdefault("local", {})["adapters"] = [item.strip() for item in extra.split(",") if item.strip()]
     if provider := _env("LLM_PROVIDER"):
-        llm["provider"] = provider
+        aliases = {"gemini": "google", "openai-compatible": "openai_compat", "openai_compatible": "openai_compat"}
+        llm["provider"] = aliases.get(provider, provider)
     if os.getenv("LLM_ENABLE") is not None:
         llm["enable"] = _env_bool("LLM_ENABLE", False)
     if _env("OPENAI_MODEL"):
         llm.setdefault("openai", {})["model"] = _env("OPENAI_MODEL")
+    if _env("LLM_BASE_URL"):
+        llm.setdefault("openai_compat", {})["base_url"] = _env("LLM_BASE_URL")
+        llm.setdefault("openai", {})["base_url"] = _env("LLM_BASE_URL")
+    if _env("GOOGLE_API_MODEL"):
+        llm.setdefault("google", {})["model"] = _env("GOOGLE_API_MODEL")
     if _env("GOOGLE_CLOUD_PROJECT"):
         gcp["project"] = _env("GOOGLE_CLOUD_PROJECT")
     if _env("GOOGLE_APPLICATION_CREDENTIALS"):

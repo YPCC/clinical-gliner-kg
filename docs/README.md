@@ -4,7 +4,7 @@ What this repository is, how to drive it from **`config/pipeline.yaml`**, how **
 
 | Page | What it covers |
 |---|---|
-| [Configuration](configuration.md) | How to use the YAML; **API-key worked example** (Pioneer + OpenAI + BioPortal); Vertex ADC |
+| [Configuration](configuration.md) | YAML how-to; Pioneer/OpenAI/BioPortal keys; **Gemini API key**; **OpenAI-compatible** `base_url`; Vertex ADC |
 | [Overview](overview.md) | Purpose, non-goals, who it is for |
 | [Architecture](architecture.md) | Cascade stages, mermaid diagrams, provenance |
 | [oaklib grounding](oaklib-grounding.md) | Local OBO / SQLite vs remote OLS/BioPortal |

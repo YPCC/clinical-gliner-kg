@@ -15,6 +15,8 @@ String values expand `$VAR` / `${VAR}`.
 |---|---|
 | [`config/pipeline.yaml`](../config/pipeline.yaml) | Default local / offline demo |
 | [`config/pipeline.api-keys.example.yaml`](../config/pipeline.api-keys.example.yaml) | Hosted Pioneer + OpenAI + BioPortal |
+| [`config/pipeline.google-api-key.example.yaml`](../config/pipeline.google-api-key.example.yaml) | Gemini via `GOOGLE_API_KEY` |
+| [`config/pipeline.openai-compat.example.yaml`](../config/pipeline.openai-compat.example.yaml) | Any OpenAI-compatible `base_url` + key |
 
 ```bash
 # inspect what the process will actually use (secret values are redacted)
@@ -137,7 +139,75 @@ export HF_TOKEN=hf_replace_me
 
 Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). Not every GLiNER checkpoint exposes a working Inference API; Pioneer is the supported hosted path.
 
-## 4. Vertex on GCP (ADC, no API key)
+## 4. Google Gemini API key (not Vertex)
+
+Google gives you two auth styles. This one is an **API key** against the Gemini OpenAI-compatible endpoint ([docs](https://ai.google.dev/gemini-api/docs/openai)). No GCP project, no ADC.
+
+Copy [`config/pipeline.google-api-key.example.yaml`](../config/pipeline.google-api-key.example.yaml):
+
+```yaml
+llm:
+  provider: google
+  enable: true
+  google:
+    model: gemini-2.0-flash
+    token_env: GOOGLE_API_KEY          # also accepts GEMINI_API_KEY
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+```
+
+```bash
+cp config/pipeline.google-api-key.example.yaml config/pipeline.local.yaml
+export GOOGLE_API_KEY=AIza-replace_me    # https://aistudio.google.com/apikey
+# or: export GEMINI_API_KEY=AIza-replace_me
+export LLM_PROVIDER=google
+export LLM_ENABLE=1
+
+clinical-gliner --config config/pipeline.local.yaml --print-config
+python examples/run_pipeline.py --config config/pipeline.local.yaml --backend heuristic
+```
+
+`--print-config` should show `secrets.GOOGLE_API_KEY: true`.
+
+Vertex ADC (`llm.provider: vertex` + `gcloud auth application-default login`) is a different path — see section 6.
+
+## 5. Any OpenAI-compatible API key
+
+Anything that speaks `POST {base_url}/chat/completions` with `Authorization: Bearer`: Groq, Together, Fireworks, vLLM, Ollama, LiteLLM, Pioneer `/v1`, local OpenAI proxies.
+
+Copy [`config/pipeline.openai-compat.example.yaml`](../config/pipeline.openai-compat.example.yaml):
+
+```yaml
+llm:
+  provider: openai_compat
+  enable: true
+  openai_compat:
+    model: llama-3.1-70b-versatile
+    token_env: OPENAI_API_KEY          # whatever the vendor named the key
+    base_url: https://api.groq.com/openai/v1
+```
+
+```bash
+cp config/pipeline.openai-compat.example.yaml config/pipeline.local.yaml
+export OPENAI_API_KEY=gsk_replace_me
+export LLM_BASE_URL=https://api.groq.com/openai/v1   # overlays base_url
+export LLM_PROVIDER=openai_compat
+export LLM_ENABLE=1
+clinical-gliner --config config/pipeline.local.yaml --print-config
+```
+
+| Vendor | `base_url` | Key env |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
+| Gemini API (OpenAI compat) | `https://generativelanguage.googleapis.com/v1beta/openai/` | `GOOGLE_API_KEY` |
+| Groq | `https://api.groq.com/openai/v1` | `OPENAI_API_KEY` |
+| Together | `https://api.together.xyz/v1` | `OPENAI_API_KEY` |
+| Ollama | `http://localhost:11434/v1` | any non-empty dummy key |
+| vLLM | `http://localhost:8000/v1` | optional |
+| LiteLLM proxy | your proxy `/v1` | proxy key |
+
+You can also set `llm.openai.base_url` while keeping `provider: openai` if you only need a custom OpenAI proxy.
+
+## 6. Vertex on GCP (ADC, no API key)
 
 YAML selects Vertex; Google auth is Application Default Credentials, not an `API_KEY` env var.
 
@@ -164,7 +234,7 @@ clinical-gliner --config config/pipeline.yaml --print-config
 
 ADC search order: `gcp.credentials_file` → `GOOGLE_APPLICATION_CREDENTIALS` → `gcloud auth application-default login` → GCE/GKE/Cloud Run metadata. Docs: [ADC](https://cloud.google.com/docs/authentication/application-default-credentials) · [Vertex AI auth](https://cloud.google.com/vertex-ai/docs/authentication).
 
-## 5. What each mode means
+## 7. What each mode means
 
 ### GLiNER
 
@@ -195,12 +265,14 @@ Official OAK docs: [home](https://incatools.github.io/ontology-access-kit/) · [
 | `llm.provider` | Auth |
 |---|---|
 | `none` | — |
-| `openai` | `OPENAI_API_KEY` |
+| `openai` | `OPENAI_API_KEY` (+ optional `openai.base_url`) |
+| `openai_compat` | `token_env` + `openai_compat.base_url` (any Chat Completions server) |
 | `azure_openai` | `AZURE_OPENAI_API_KEY` + endpoint / deployment |
+| `google` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` (Gemini API, not Vertex) |
 | `vertex` | GCP ADC + `gcp.project` |
 | `anthropic` | `ANTHROPIC_API_KEY` |
 
-Env: `LLM_PROVIDER`, `LLM_ENABLE=1`, `OPENAI_MODEL`.
+Env: `LLM_PROVIDER`, `LLM_ENABLE=1`, `OPENAI_MODEL`, `LLM_BASE_URL`, `GOOGLE_API_KEY`. Aliases: `gemini` → `google`, `openai-compatible` → `openai_compat`.
 
 ### PHI
 
@@ -212,7 +284,7 @@ phi:
 
 `PHI_ACTION`. PII weights follow `gliner.mode`.
 
-## 6. Pass `--config` from examples
+## 8. Pass `--config` from examples
 
 ```bash
 python examples/run_pipeline.py --config config/pipeline.local.yaml --backend gliner25
@@ -221,7 +293,7 @@ python examples/run_architecture_spike.py --config config/pipeline.local.yaml
 python examples/run_literature_benchmark.py --config config/pipeline.local.yaml --backend gliner25 --limit 30
 ```
 
-## 7. Safety
+## 9. Safety
 
 - Clinical spans leave the box when `gliner.mode` is `pioneer` / `huggingface_api` or `oaklib.mode` is `ols` / `bioportal`.
 - Keep PHI notes on `gliner.mode: local` and `oaklib.mode: local` unless you have a BAA with the vendor.

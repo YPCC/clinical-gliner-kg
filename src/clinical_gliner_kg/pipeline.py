@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import os
 import uuid
 from pathlib import Path
 
@@ -78,12 +76,21 @@ class ClinicalSemanticExtractionPipeline:
             enable_spacy_llm=llm_enable,
             provider=cfg.llm.provider if llm_enable or cfg.llm.provider != "none" else "none",
             openai_model=cfg.llm.openai.model,
+            openai_base_url=cfg.llm.openai.base_url,
+            openai_token_env=cfg.llm.openai.token_env,
+            google_model=cfg.llm.google.model,
+            google_base_url=cfg.llm.google.base_url,
+            google_token_env=cfg.llm.google.token_env,
+            openai_compat_model=cfg.llm.openai_compat.model,
+            openai_compat_base_url=cfg.llm.openai_compat.base_url,
+            openai_compat_token_env=cfg.llm.openai_compat.token_env,
             vertex_model=cfg.llm.vertex.model,
             vertex_location=cfg.gcp.location or cfg.llm.vertex.location,
             gcp_project=cfg.gcp.project,
             azure_endpoint=cfg.llm.azure_openai.endpoint,
             azure_deployment=cfg.llm.azure_openai.deployment,
             anthropic_model=cfg.llm.anthropic.model,
+            temperature=cfg.llm.openai.temperature,
         )
         self.emitter = GraphEmitter()
         self.pipeline_version = cfg.pipeline_version

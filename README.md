@@ -194,8 +194,37 @@ python examples/run_pipeline.py --config config/pipeline.local.yaml --backend gl
 
 `--print-config` reports only whether each secret is *set*, never the value.
 
-Hugging Face instead of Pioneer: `gliner.mode: huggingface_api` and `HF_TOKEN`.  
-Vertex instead of OpenAI: `llm.provider: vertex` and GCP ADC (`gcloud auth application-default login`) — no API key. See [docs/configuration.md](docs/configuration.md).
+Hugging Face instead of Pioneer: `gliner.mode: huggingface_api` and `HF_TOKEN`.
+
+**Google Gemini API key** (not Vertex ADC):
+
+```yaml
+llm:
+  provider: google
+  enable: true
+  google:
+    model: gemini-2.0-flash
+    token_env: GOOGLE_API_KEY          # or GEMINI_API_KEY
+```
+
+```bash
+cp config/pipeline.google-api-key.example.yaml config/pipeline.local.yaml
+export GOOGLE_API_KEY=AIza-replace_me   # https://aistudio.google.com/apikey
+```
+
+**Any OpenAI-compatible endpoint** (Groq, vLLM, Ollama, Together, LiteLLM):
+
+```yaml
+llm:
+  provider: openai_compat
+  enable: true
+  openai_compat:
+    model: llama-3.1-70b-versatile
+    token_env: OPENAI_API_KEY
+    base_url: https://api.groq.com/openai/v1
+```
+
+Vertex remains ADC (`gcloud auth application-default login`), not an API key. Full tables: [docs/configuration.md](docs/configuration.md).
 
 Copy `.env.example` for the full list of secret names. oaklib `mode: local` does **not** need keys.
 

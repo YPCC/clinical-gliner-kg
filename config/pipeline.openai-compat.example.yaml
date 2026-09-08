@@ -1,40 +1,21 @@
-# Copy-ready overlay: hosted APIs + API keys in the environment.
-#   cp config/pipeline.api-keys.example.yaml config/pipeline.local.yaml
-#   cp .env.example .env   # then fill PIONEER_API_KEY, OPENAI_API_KEY, BIOPORTAL_API_KEY
-#   set -a && source .env && set +a
-#   clinical-gliner --config config/pipeline.local.yaml --print-config
+# Generic OpenAI-compatible Chat Completions endpoint (API key + base_url).
+# Works with Groq, Together, Fireworks, vLLM, Ollama, LiteLLM, Pioneer /v1, etc.
 #
-# Do NOT put secret values in this file. token_env names the environment variable.
+#   cp config/pipeline.openai-compat.example.yaml config/pipeline.local.yaml
+#   export OPENAI_API_KEY=...          # whatever the vendor calls the key
+#   export LLM_BASE_URL=https://api.groq.com/openai/v1
+#   clinical-gliner --config config/pipeline.local.yaml --print-config
 
 pipeline_version: 0.1.0-cascaded
-backend: gliner25
+backend: auto
 confidence_threshold: 0.75
 
-clinical_labels:
-  - Patient
-  - Condition
-  - Medication
-  - Laboratory_Test
-  - Laboratory_Result
-  - Anatomy
-  - Procedure
-  - Provider
+clinical_labels: [Patient, Condition, Medication, Laboratory_Test, Laboratory_Result, Anatomy, Procedure, Provider]
+relation_types: [HAS_CONDITION, TAKES, TREATS, HAS_VALUE, INDICATES, PERFORMED, HAS_ANATOMICAL_SITE]
 
-relation_types:
-  - HAS_CONDITION
-  - TAKES
-  - TREATS
-  - HAS_VALUE
-  - INDICATES
-  - PERFORMED
-  - HAS_ANATOMICAL_SITE
-
-# Hosted Fastino Pioneer GLiNER (PIONEER_API_KEY).
-# Switch to huggingface_api + HF_TOKEN if you prefer Hugging Face Inference.
 gliner:
-  mode: pioneer
+  mode: local
   model: fastino/gliner2.5-small-v1
-  device: cpu
   threshold: 0.3
   enable_relations: true
   enable_joint: false
@@ -48,25 +29,21 @@ gliner:
   spacy:
     model: urchade/gliner_medium-v2.1
 
-# BioPortal annotator (BIOPORTAL_API_KEY). Use mode: ols if you want EBI OLS (no key).
 oaklib:
-  mode: bioportal
+  mode: local
   eager: false
   local:
     adapters:
       - simpleobo:data/ontologies/mini_clinical.obo
   ols:
-    selectors:
-      - ols4:mondo
-      - ols4:chebi
+    selectors: [ols4:mondo, ols4:chebi]
   bioportal:
     token_env: BIOPORTAL_API_KEY
     selectors:
       - "bioportal:"
 
-# spaCy-LLM / OpenAI only on low-confidence or illegal relations (OPENAI_API_KEY).
 llm:
-  provider: openai
+  provider: openai_compat
   enable: true
   openai:
     model: gpt-4o-mini
@@ -74,10 +51,10 @@ llm:
     temperature: 0.0
     base_url: https://api.openai.com/v1
   openai_compat:
-    model: gpt-4o-mini
+    model: llama-3.1-70b-versatile
     token_env: OPENAI_API_KEY
     temperature: 0.0
-    base_url: https://api.openai.com/v1
+    base_url: https://api.groq.com/openai/v1
   azure_openai:
     endpoint: ""
     deployment: ""

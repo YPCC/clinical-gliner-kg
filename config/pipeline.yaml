@@ -80,7 +80,10 @@ oaklib:
 # ---------------------------------------------------------------------------
 # LLM adjudication (exception path only)
 # ---------------------------------------------------------------------------
-# provider: none | openai | azure_openai | vertex | anthropic
+# provider: none | openai | openai_compat | azure_openai | google | vertex | anthropic
+# google     = Gemini API key (GOOGLE_API_KEY / GEMINI_API_KEY), not Vertex ADC
+# openai_compat = any OpenAI Chat Completions server (Groq, vLLM, Ollama, Together, …)
+# vertex     = Gemini on GCP via Application Default Credentials
 # enable: false keeps the heuristic adjudicator even if a key is present.
 llm:
   provider: none
@@ -89,11 +92,22 @@ llm:
     model: gpt-4o-mini
     token_env: OPENAI_API_KEY
     temperature: 0.0
+    base_url: https://api.openai.com/v1
+  openai_compat:
+    model: gpt-4o-mini
+    token_env: OPENAI_API_KEY
+    temperature: 0.0
+    base_url: https://api.openai.com/v1   # set to Groq / vLLM / Ollama / LiteLLM
   azure_openai:
     endpoint: ""                 # or AZURE_OPENAI_ENDPOINT
     deployment: ""
     api_version: "2024-10-21"
     token_env: AZURE_OPENAI_API_KEY
+  google:
+    model: gemini-2.0-flash
+    token_env: GOOGLE_API_KEY    # falls back to GEMINI_API_KEY
+    temperature: 0.0
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
   vertex:
     model: gemini-2.0-flash
     location: us-central1
