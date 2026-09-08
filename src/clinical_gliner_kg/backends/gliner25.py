@@ -36,7 +36,8 @@ DEFAULT_RELATIONS = [
 LABEL_MAP = {
     "patient": "Patient",
     "condition": "Condition",
-    "disease": "Condition",
+    "chemical": "Chemical",
+    "disease": "Disease",
     "diagnosis": "Condition",
     "medication": "Medication",
     "drug": "Medication",
@@ -66,10 +67,16 @@ class GLiNER25Backend:
         model_name: str | None = None,
         threshold: float = 0.3,
         enable_relations: bool = True,
+        labels: list[str] | None = None,
+        relations: list[str] | None = None,
+        enable_joint: bool = False,
     ) -> None:
         self.model_name = model_name or os.getenv("GLINER25_MODEL", "fastino/gliner2.5-small-v1")
         self.threshold = threshold
         self.enable_relations = enable_relations
+        self.labels = [label.lower() for label in (labels or DEFAULT_ENTITY_LABELS)]
+        self.relations = relations or DEFAULT_RELATIONS
+        self.enable_joint = enable_joint
         self._extractor = None
         self._joint = None
         self._load()
@@ -84,7 +91,7 @@ class GLiNER25Backend:
             ) from exc
 
         self._extractor = AutoExtractor.from_pretrained(self.model_name)
-        if self.enable_relations:
+        if self.enable_relations and self.enable_joint:
             try:
                 from gliner2.joint_ie import JointIE
 
@@ -101,7 +108,7 @@ class GLiNER25Backend:
         assert self._extractor is not None
         raw = self._extractor.extract_entities(
             text,
-            DEFAULT_ENTITY_LABELS,
+            self.labels,
             include_spans=True,
             include_confidence=True,
         )
@@ -138,7 +145,7 @@ class GLiNER25Backend:
         try:
             raw = self._extractor.extract_relations(
                 text,
-                DEFAULT_RELATIONS,
+                self.relations,
                 include_confidence=True,
                 include_spans=True,
             )
@@ -170,7 +177,7 @@ class GLiNER25Backend:
         assert self._joint is not None
         schema = (
             self._joint.create_schema()
-            .entities(DEFAULT_ENTITY_LABELS)
+            .entities(self.labels)
             .relation("HAS_CONDITION", "patient", "condition")
             .relation("TAKES", "patient", "medication")
             .relation("TREATS", "medication", "condition")

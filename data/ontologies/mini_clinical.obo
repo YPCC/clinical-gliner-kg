@@ -1,0 +1,78 @@
+format-version: 1.2
+ontology: mini-clinical
+
+[Term]
+id: MONDO:0005148
+name: type 2 diabetes mellitus
+synonym: "type 2 diabetes" EXACT []
+synonym: "T2DM" EXACT []
+xref: MESH:D003924
+xref: SNOMEDCT:44054006
+
+[Term]
+id: MONDO:0004992
+name: cancer
+synonym: "malignant neoplasm" EXACT []
+synonym: "colorectal cancer" EXACT []
+
+[Term]
+id: MONDO:0005240
+name: hypertension
+synonym: "essential hypertension" EXACT []
+xref: MESH:D006973
+xref: SNOMEDCT:38341003
+
+[Term]
+id: MONDO:0005147
+name: type 1 diabetes mellitus
+synonym: "type 1 diabetes" EXACT []
+
+[Term]
+id: MONDO:0005275
+name: heart failure
+xref: SNOMEDCT:84114007
+
+[Term]
+id: MONDO:0005002
+name: chronic kidney disease
+synonym: "CKD" EXACT []
+
+[Term]
+id: MONDO:0005008
+name: atrial fibrillation
+
+[Term]
+id: MONDO:0005249
+name: pneumonia
+synonym: "community acquired pneumonia" EXACT []
+synonym: "community-acquired pneumonia" EXACT []
+
+[Term]
+id: CHEBI:6801
+name: metformin
+xref: RXNORM:6809
+
+[Term]
+id: CHEBI:6503
+name: lisinopril
+xref: RXNORM:29046
+
+[Term]
+id: CHEBI:39548
+name: atorvastatin
+
+[Term]
+id: CHEBI:4603
+name: furosemide
+
+[Term]
+id: CHEBI:10033
+name: warfarin
+
+[Term]
+id: CHEBI:29007
+name: ceftriaxone
+
+[Term]
+id: CHEBI:8107
+name: famotidine

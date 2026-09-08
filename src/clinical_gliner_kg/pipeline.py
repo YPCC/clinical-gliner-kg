@@ -36,14 +36,21 @@ class ClinicalSemanticExtractionPipeline:
         enable_gliner_pii: bool = False,
         enable_spacy_llm: bool = False,
         config_path: Path | None = None,
+        labels: list[str] | None = None,
+        relations: list[str] | None = None,
+        enable_relations: bool | None = None,
     ) -> None:
         cfg = load_config(config_path)
         backend_name = backend or os.getenv("CLINICAL_GLINER_BACKEND") or cfg.get("backend", "auto")
         threshold = confidence_threshold if confidence_threshold is not None else float(cfg.get("confidence_threshold", 0.75))
-        self.extractor = resolve_backend(
-            backend_name,
-            model_name=os.getenv("GLINER25_MODEL", cfg.get("gliner25_model")),
-        )
+        backend_kwargs = {
+            "model_name": os.getenv("GLINER25_MODEL", cfg.get("gliner25_model")),
+        }
+        if labels:
+            backend_kwargs["labels"] = labels
+        if enable_relations is not None:
+            backend_kwargs["enable_relations"] = enable_relations
+        self.extractor = resolve_backend(backend_name, **backend_kwargs)
         self.phi_gate = PHIPolicyGate(action=phi_action or cfg.get("phi_action", "tag"), enable_gliner_pii=enable_gliner_pii)
         self.ontology = OntologyValidationEngine()
         self.adjudicator = LLMAdjudicator(confidence_threshold=threshold, enable_spacy_llm=enable_spacy_llm)

@@ -12,7 +12,7 @@ Cascaded clinical extraction plane:
 
 1. **GLiNER turns clinical text into structured entities + relationships** — without sending every document to an LLM.
 2. **Use it as a fast, high-recall extraction layer** for NER, PHI/PII, streaming events, and KG triples.
-3. **Ground outputs with SNOMED CT, UMLS, RxNorm, LOINC** and healthcare domain models to improve precision.
+3. **Ground outputs with oaklib + SNOMED CT / RxNorm / LOINC / MONDO** to improve precision.
 4. **Escalate only ambiguous cases to an LLM** — improving accuracy while controlling latency, cost, and risk.
 5. **Result:** a continuously enriched, provenance-aware Healthcare Knowledge Graph for RAG, analytics, and AI agents.
 
@@ -74,11 +74,10 @@ clinical-gliner-kg/
 ├── config/                 pipeline.yaml, ontology rules, terminology catalog, spaCy-LLM cfg
 ├── src/clinical_gliner_kg/
 │   ├── backends/           GLiNER 2.5 · gliner-spacy · heuristic fallback
-│   ├── components/         PHI gate · ontology linker · LLM adjudicator
-│   ├── graph/              Cypher / JSON-LD / Turtle emitter
-│   └── pipeline.py         cascade orchestrator
+│   ├── components/         PHI gate · oaklib grounder · ontology · LLM
 ├── data/
 │   ├── synthetic/          runnable gold notes + PHI examples
+│   ├── ontologies/         mini OBO used by oaklib simpleobo
 │   └── catalogs/           slice of YPCC/medical-data (open vs DUA)
 ├── examples/               demos and benchmarks
 └── tests/                  no-weight unit tests
@@ -114,7 +113,8 @@ Copy `.env.example` and set keys only if you want live spaCy-LLM or the Fastino 
 | `gliner2` | Fastino `AutoExtractor` / `JointIE` on `fastino/gliner2.5-small-v1` (default) or `base` / `multi` |
 | `gliner` | Classic `gliner` + spaCy factory `gliner_spacy` |
 | `llm` | `spacy-llm` NER.v3 adjudication when `OPENAI_API_KEY` is set |
-| `graph` | networkx + rdflib extras |
+| `oak` | oaklib grounding (`simpleobo:` bundled mini ontology; `sqlite:obo:mondo` when `OAK_EAGER=1`) |
+| `datasets` | NCBI Disease / BC5CDR downloaders |
 
 Backend selection (`--backend` or `CLINICAL_GLINER_BACKEND`):
 
@@ -156,7 +156,44 @@ After installing the full stack:
 python examples/run_pipeline.py --backend gliner25
 python examples/run_pipeline.py --backend gliner_spacy
 python examples/run_phi_benchmark.py --gliner-pii
+python examples/run_literature_benchmark.py --backend gliner25 --limit 30
 ```
+
+---
+
+## oaklib grounding
+
+After the static RxNorm / SNOMED / LOINC table misses, `OaklibGrounder` calls oaklib `annotate_text` / `basic_search`.
+
+Default adapter is the bundled mini ontology so CI stays offline:
+
+```text
+simpleobo:data/ontologies/mini_clinical.obo
+```
+
+That grounds `type 2 diabetes` → `MONDO:0005148`. Full OBO Foundry snapshots:
+
+```bash
+export OAK_EAGER=1
+export OAK_ADAPTERS=sqlite:obo:mondo,sqlite:obo:chebi
+```
+
+---
+
+## Live GLiNER 2.5 spike (CPU, this workspace)
+
+`fastino/gliner2.5-small-v1`, 30 test documents/corpus, exact-span F1 after hyphen/space normalization.
+
+| Corpus | N | Entity P / R / F1 | Rel F1 | Ont. pass | Linked | P95 | docs/s | Planning $ / 100k |
+|---|---|---|---|---|---|---|---|---|
+| NCBI Disease | 30 | 0.22 / 0.35 / 0.27 | n/a | 1.00 | 0.02 | 0.21 s | 6.1 | $41.81 * |
+| BC5CDR | 30 | 0.55 / 0.43 / 0.48 | 0.00 † | 1.00 | 0.04 | 0.62 s | 2.4 | $4.66 |
+| Synthetic PHI | 5 notes | — | — | — | — | — | — | recall 0.91, over-redaction 0.00 |
+
+\* NCBI planning cost is dominated by a 3% escalation × $0.012 fee. Local compute only is about $1.81 / 100k at $0.40/CPU-hour.  
+† Zero-shot CID RelEx on 2.5-small did not recover gold pairs on this slice.
+
+This is a generalist 74M encoder used zero-shot, not a BioBERT number. Next levers: `gliner2.5-base-v1`, biomedical fine-tune, document-level NCBI reconstruction, and `sqlite:obo:mondo`.
 
 ---
 

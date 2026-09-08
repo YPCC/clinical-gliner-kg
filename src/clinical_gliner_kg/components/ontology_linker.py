@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from clinical_gliner_kg.components.oak_grounder import OaklibGrounder
 from clinical_gliner_kg.models import ClinicalEntity, ClinicalRelation, TerminologyLink
 
 DEFAULT_RULES = {
@@ -16,6 +17,12 @@ DEFAULT_RULES = {
         "INDICATES": [
             {"subject": "Laboratory_Result", "object": "Condition"},
             {"subject": "Laboratory_Test", "object": "Condition"},
+        ],
+        "CID": [
+            {"subject": "Chemical", "object": "Disease"},
+            {"subject": "Chemical", "object": "Condition"},
+            {"subject": "Medication", "object": "Disease"},
+            {"subject": "Medication", "object": "Condition"},
         ],
         "PERFORMED": [{"subject": "Provider", "object": "Procedure"}],
         "HAS_ANATOMICAL_SITE": [
@@ -46,6 +53,7 @@ class OntologyValidationEngine:
             key.lower(): TerminologyLink(**value) if isinstance(value, dict) else value
             for key, value in raw_catalog.items()
         }
+        self.oak = OaklibGrounder()
 
     @staticmethod
     def _load_json(path: Path, fallback: dict) -> dict:
@@ -58,11 +66,17 @@ class OntologyValidationEngine:
         key = entity.text.strip().lower()
         if key in self.catalog:
             entity.terminology = self.catalog[key]
+            if entity.terminology and not entity.terminology.method:
+                entity.terminology.method = "catalog"
             return entity
         for name, link in self.catalog.items():
             if name in key or key in name:
-                entity.terminology = link
+                entity.terminology = link.model_copy() if hasattr(link, "model_copy") else link
+                if entity.terminology and not entity.terminology.method:
+                    entity.terminology.method = "catalog-partial"
                 return entity
+        if self.oak.enabled():
+            return self.oak.ground(entity)
         return entity
 
     def validate_relation(

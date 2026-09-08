@@ -6,7 +6,8 @@ from collections import defaultdict
 
 
 def normalize(text: str) -> str:
-    return " ".join(text.lower().split())
+    collapsed = " ".join(text.lower().replace("-", " ").split())
+    return collapsed
 
 
 def prf(true_pos: int, pred_pos: int, gold_pos: int) -> dict[str, float]:

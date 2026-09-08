@@ -8,4 +8,6 @@ gliner-spacy>=0.0.8
 gliner2[local]>=0.1.0
 spacy-llm>=0.7.2
 networkx>=3.2.1
-rdflib>=7.0.0
+oaklib>=0.6.0
+datasets>=2.16.0
+

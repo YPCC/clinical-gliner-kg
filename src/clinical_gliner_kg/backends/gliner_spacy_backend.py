@@ -28,7 +28,7 @@ CLINICAL_LABELS = [
 class GlinerSpacyBackend:
     name = "gliner_spacy"
 
-    def __init__(self, model_name: str | None = None, threshold: float = 0.3) -> None:
+    def __init__(self, model_name: str | None = None, threshold: float = 0.3, **_kwargs) -> None:
         self.model_name = model_name or os.getenv("GLINER_SPACY_MODEL", "urchade/gliner_medium-v2.1")
         self.threshold = threshold
         try:

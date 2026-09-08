@@ -60,6 +60,9 @@ RESULT_RE = re.compile(
 class HeuristicBackend:
     name = "heuristic"
 
+    def __init__(self, **_kwargs) -> None:
+        return
+
     def extract(self, text: str) -> tuple[list[ClinicalEntity], list[ClinicalRelation]]:
         entities: list[ClinicalEntity] = []
         occupied: list[tuple[int, int]] = []

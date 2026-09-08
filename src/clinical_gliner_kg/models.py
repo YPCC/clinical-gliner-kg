@@ -22,6 +22,7 @@ class TerminologyLink(BaseModel):
     code: str
     display: str
     match_score: float = 0.0
+    method: str = "catalog"
 
 
 class ClinicalEntity(BaseModel):
