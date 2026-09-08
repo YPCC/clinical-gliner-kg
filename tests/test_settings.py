@@ -131,7 +131,8 @@ def test_google_adjudicator_uses_compat_client(monkeypatch):
     subj = ClinicalEntity(id="s", text="metformin", label="Medication", start_char=0, end_char=9, confidence=0.9)
     obj = ClinicalEntity(id="o", text="kidney", label="Anatomy", start_char=10, end_char=16, confidence=0.9)
     rel = ClinicalRelation(subject_id="s", relation="HAS_ANATOMICAL_SITE", object_id="o", confidence=0.4)
-    out = adj.adjudicate_relations([rel], {"s": subj, "o": obj}, [(False, "illegal")])
-    assert out[0].validation_status.value == "REJECTED"
+    out = adj.adjudicate_relations([rel], {"s": subj, "o": obj}, [(False, "Unregistered relation pair")])
+    assert out[0].validation_status.value == "LLM_REJECTED"
+    assert out[0].confidence == 0.4
     assert "generativelanguage.googleapis.com" in calls["base_url"]
     assert calls["model"] == "gemini-2.0-flash"

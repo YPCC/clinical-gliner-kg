@@ -8,15 +8,15 @@ Cascaded clinical extraction plane:
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Docs:** [overview](docs/overview.md) · [configuration](docs/configuration.md) · [architecture](docs/architecture.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md) · [infographics](docs/infographics.md) · [LinkedIn draft](docs/linkedin-post.md)
+**Docs:** [overview](docs/overview.md) · [configuration](docs/configuration.md) · [C4](docs/c4/README.md) · [architecture](docs/architecture.md) · [next steps](docs/next-steps.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md)
 
 ---
 
 1. **GLiNER turns clinical text into structured entities + relationships** — without sending every document to an LLM.
-2. **Use it as a fast, high-recall extraction layer** for NER, PHI/PII, streaming events, and KG triples.
-3. **Ground outputs with oaklib on local OBO / SQLite files** (plus a SNOMED / RxNorm / LOINC catalog). **No ontology API key is required.**
-4. **Escalate only ambiguous cases to an LLM** — improving accuracy while controlling latency, cost, and risk.
-5. **Result:** a continuously enriched, provenance-aware Healthcare Knowledge Graph for RAG, analytics, and AI agents.
+2. **Use it as a fast, high-recall extraction layer** for NER, PHI/PII, and KG triples. The pipeline is **designed to support** event-driven ingestion; it is not a Kafka/Pub/Sub runtime yet.
+3. **Ground outputs with oaklib on local OBO / SQLite files** (plus a SNOMED / RxNorm / LOINC catalog). **No ontology API key is required.** Domain-range checks are **JSON schema rules**, not OWL/SHACL inference.
+4. **Escalate only ambiguous cases to an LLM** when a provider is configured. Otherwise the relation is `NEEDS_REVIEW` — we do not invent an adjudication or raise confidence.
+5. **Result:** provenance-bearing Cypher / JSON-LD / Turtle assertions for a Healthcare KG (RAG, analytics, agents) — a reference control plane, not a production PHI system.
 
 Inspired by [GLiNER (NAACL 2024)](https://aclanthology.org/2024.naacl-long.300/), [GLiNER 2.5](https://github.com/fastino-ai/GLiNER2), [oaklib](https://incatools.github.io/ontology-access-kit/), [spaCy-LLM](https://github.com/explosion/spacy-llm), and the open NCBI Disease / BC5CDR corpora. Full reference list: [docs/bibliography.md](docs/bibliography.md).
 
@@ -30,15 +30,23 @@ GLiNER 2.5 (Fastino boundary architecture) predicts entity spans directly, suppo
 
 ```mermaid
 flowchart LR
-  A[Unstructured / streaming clinical text] --> B[1 GLiNER 2.5 + RelEx]
+  A[Clinical text] --> B[1 GLiNER 2.5 + RelEx]
   B --> C[2 PHI / PII policy gate]
   C --> D[3 Catalog + oaklib grounding]
-  D --> E[4 Confidence + domain-range router]
-  E -->|high confidence and valid| G[6 Provenance KG]
-  E -->|low confidence or illegal pair| F[5 spaCy-LLM adjudication]
-  F --> G
-  G --> H[Cypher · JSON-LD · Turtle]
+  D --> E[4 Schema domain-range router]
+  E -->|allowed and high confidence| G[VALIDATED]
+  E -->|forbidden pair| R[REJECTED]
+  E -->|ambiguous or low confidence| F{LLM configured?}
+  F -->|yes| L[LLM_VALIDATED / LLM_REJECTED]
+  F -->|no| N[NEEDS_REVIEW]
+  G --> K[Emitter: skip PHI endpoints]
+  L --> K
+  N --> K
+  R --> K
+  K --> H[Cypher · JSON-LD · Turtle]
 ```
+
+C4: [context](docs/c4/context.md) · [container](docs/c4/container.md) · [system](docs/c4/system.md). Roadmap: [docs/next-steps.md](docs/next-steps.md).
 
 Reference sentence:
 
@@ -311,9 +319,11 @@ flowchart LR
 
 GLiNER 2.5 uses a boundary decoder rather than enumerating bounded candidate spans, which is why long-span clinical entities and long notes are in scope. Joint IE (`gliner2.joint_ie.JointIE`) is used when the checkpoint exposes it; otherwise entity extraction and `extract_relations` run as two calls on the same `AutoExtractor`.
 
-spaCy remains the orchestration surface: blank `en` pipeline, `gliner_spacy` factory for classic checkpoints, `spacy-llm` `NER.v3` only on the escalation branch.
+spaCy remains the orchestration surface: blank `en` pipeline, `gliner_spacy` factory for classic checkpoints, `spacy-llm` `NER.v3` only on the escalation branch when an LLM is actually configured.
 
-This is a reference implementation for a technical spike, not a certified medical device and not a HIPAA compliance program.
+Domain-range checks are JSON allow/deny lists (`config/ontology_rules.json`), not OWL subclass reasoning. RelEx arguments bind by character span when the model returns offsets. Unlinked entities stay `UNLINKED`; we do not stamp `VALIDATED` on them.
+
+This is a reference implementation for a technical spike, not a certified medical device and not a HIPAA compliance program. See [docs/next-steps.md](docs/next-steps.md).
 
 ---
 

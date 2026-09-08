@@ -114,16 +114,16 @@ class PHIPolicyGate:
                             )
             except Exception:
                 pass
-        return findings
+        return _dedupe_findings(findings)
 
     def apply(self, text: str, entities: list[ClinicalEntity]) -> tuple[str, list[ClinicalEntity], list[PHIFinding]]:
         findings = self.detect(text)
         sanitized = list(entities)
-        out_text = text
+        out_text = _mask_by_offsets(text, findings) if self.action == "mask" else text
         for finding in findings:
             sanitized.append(
                 ClinicalEntity(
-                    id=f"phi_{finding.start}",
+                    id=f"phi_{finding.start}_{finding.end}",
                     text="[REDACTED_" + finding.label + "]" if self.action == "mask" else finding.text,
                     label=finding.label,
                     start_char=finding.start,
@@ -133,11 +133,31 @@ class PHIPolicyGate:
                     source_model=finding.source,
                 )
             )
-            if self.action == "mask":
-                out_text = out_text.replace(finding.text, f"[REDACTED_{finding.label}]")
         for ent in sanitized:
             if ent.label in PHI_LABELS:
                 ent.is_phi = True
                 if self.action == "mask":
                     ent.text = f"[REDACTED_{ent.label}]"
         return out_text, sanitized, findings
+
+
+def _dedupe_findings(findings: list[PHIFinding]) -> list[PHIFinding]:
+    """Keep the longest / highest-confidence span when detectors overlap."""
+    ordered = sorted(findings, key=lambda item: (item.start, -(item.end - item.start), -item.confidence))
+    kept: list[PHIFinding] = []
+    for item in ordered:
+        if any(not (item.end <= other.start or item.start >= other.end) for other in kept):
+            continue
+        kept.append(item)
+    return kept
+
+
+def _mask_by_offsets(text: str, findings: list[PHIFinding]) -> str:
+    """Replace using character offsets, right-to-left, so identical substrings elsewhere stay."""
+    out = text
+    for item in sorted(findings, key=lambda finding: finding.start, reverse=True):
+        if item.start < 0 or item.end > len(out) or item.start >= item.end:
+            continue
+        token = f"[REDACTED_{item.label}]"
+        out = out[: item.start] + token + out[item.end :]
+    return out

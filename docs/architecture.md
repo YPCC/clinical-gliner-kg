@@ -1,6 +1,8 @@
 # Architecture
 
-GLiNER 2.5 is the sensing tier. oaklib is the semantics tier. spaCy-LLM is the exception tier.
+GLiNER 2.5 is the sensing tier. oaklib is the **grounding** tier. JSON domain-range rules are the **schema** tier (not OWL). An LLM is the exception tier, and only if configured.
+
+C4: [context](c4/context.md) · [container](c4/container.md) · [system](c4/system.md).
 
 ![Cascade infographic](images/cascade-architecture.jpg)
 
@@ -34,7 +36,7 @@ flowchart TD
   M --> E
 ```
 
-The emitter never writes PHI nodes or `REJECTED` relations into Cypher or Turtle.
+The emitter never writes PHI nodes, relations whose endpoints were PHI, or `REJECTED` / `LLM_REJECTED` relations into Cypher or Turtle. `NEEDS_REVIEW` is emitted with that status so it is not confused with `VALIDATED`.
 
 ## Reference sentence
 

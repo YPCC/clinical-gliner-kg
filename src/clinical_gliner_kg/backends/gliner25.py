@@ -191,9 +191,9 @@ class GLiNER25Backend:
             return relations
         for rel_name, pairs in payload.items():
             for pair in _as_item_list(pairs):
-                subj_text, obj_text, conf = _unpack_pair(pair)
-                subj = _nearest(entities, subj_text)
-                obj = _nearest(entities, obj_text)
+                subj_text, obj_text, conf, s0, s1, o0, o1 = _unpack_pair(pair)
+                subj = _nearest(entities, subj_text, start=s0, end=s1)
+                obj = _nearest(entities, obj_text, start=o0, end=o1)
                 if not subj or not obj:
                     continue
                 relations.append(
@@ -203,6 +203,10 @@ class GLiNER25Backend:
                         object_id=obj.id,
                         confidence=conf,
                         source_model=self.model_name,
+                        subject_start=s0 if s0 is not None else subj.start_char,
+                        subject_end=s1 if s1 is not None else subj.end_char,
+                        object_start=o0 if o0 is not None else obj.start_char,
+                        object_end=o1 if o1 is not None else obj.end_char,
                     )
                 )
         return relations
@@ -224,9 +228,9 @@ class GLiNER25Backend:
         if isinstance(rel_block, dict):
             for rel_name, pairs in rel_block.items():
                 for pair in _as_item_list(pairs):
-                    subj_text, obj_text, conf = _unpack_pair(pair)
-                    subj = _nearest(entities, subj_text)
-                    obj = _nearest(entities, obj_text)
+                    subj_text, obj_text, conf, s0, s1, o0, o1 = _unpack_pair(pair)
+                    subj = _nearest(entities, subj_text, start=s0, end=s1)
+                    obj = _nearest(entities, obj_text, start=o0, end=o1)
                     if subj and obj:
                         relations.append(
                             ClinicalRelation(
@@ -235,6 +239,10 @@ class GLiNER25Backend:
                                 object_id=obj.id,
                                 confidence=conf,
                                 source_model=f"{self.model_name}+jointie",
+                                subject_start=s0 if s0 is not None else subj.start_char,
+                                subject_end=s1 if s1 is not None else subj.end_char,
+                                object_start=o0 if o0 is not None else obj.start_char,
+                                object_end=o1 if o1 is not None else obj.end_char,
                             )
                         )
         return relations
@@ -264,29 +272,68 @@ def _unpack_span(item: Any, text: str) -> tuple[str, int, int, float]:
     return str(item), 0, 0, 0.50
 
 
-def _unpack_pair(item: Any) -> tuple[str, str, float]:
+def _span_from_arg(arg: Any) -> tuple[str, int | None, int | None]:
+    if isinstance(arg, dict):
+        text = str(arg.get("text") or arg.get("span") or "")
+        start = arg.get("start")
+        end = arg.get("end")
+        return text, (int(start) if start is not None else None), (int(end) if end is not None else None)
+    return str(arg or ""), None, None
+
+
+def _unpack_pair(item: Any) -> tuple[str, str, float, int | None, int | None, int | None, int | None]:
     if isinstance(item, dict):
         head = item.get("head") or item.get("subject") or item.get("source") or ""
         tail = item.get("tail") or item.get("object") or item.get("target") or ""
-        if isinstance(head, dict):
-            head = head.get("text", "")
-        if isinstance(tail, dict):
-            tail = tail.get("text", "")
+        head_text, hs, he = _span_from_arg(head)
+        tail_text, ts, te = _span_from_arg(tail)
+        if hs is None and item.get("head_start") is not None:
+            hs, he = int(item["head_start"]), int(item.get("head_end") or 0)
+        if ts is None and item.get("tail_start") is not None:
+            ts, te = int(item["tail_start"]), int(item.get("tail_end") or 0)
         conf = float(item.get("confidence", item.get("score", 0.80)))
-        return str(head), str(tail), conf
+        return head_text, tail_text, conf, hs, he, ts, te
     if isinstance(item, (list, tuple)) and len(item) >= 2:
         conf = float(item[2]) if len(item) > 2 and isinstance(item[2], (int, float)) else 0.80
-        return str(item[0]), str(item[1]), conf
-    return "", "", 0.0
+        return str(item[0]), str(item[1]), conf, None, None, None, None
+    return "", "", 0.0, None, None, None, None
 
 
-def _nearest(entities: list[ClinicalEntity], surface: str) -> ClinicalEntity | None:
+def _overlaps(start: int, end: int, ent: ClinicalEntity) -> bool:
+    return not (end <= ent.start_char or start >= ent.end_char)
+
+
+def _nearest(
+    entities: list[ClinicalEntity],
+    surface: str,
+    start: int | None = None,
+    end: int | None = None,
+) -> ClinicalEntity | None:
+    if not surface and start is None:
+        return None
+    if start is not None and end is not None:
+        exact = [ent for ent in entities if ent.start_char == start and ent.end_char == end]
+        if exact:
+            return exact[0]
+        overlapping = [ent for ent in entities if _overlaps(start, end, ent)]
+        if len(overlapping) == 1:
+            return overlapping[0]
+        if overlapping and surface:
+            needle = surface.lower()
+            for ent in overlapping:
+                if ent.text.lower() == needle:
+                    return ent
+            return overlapping[0]
     if not surface:
         return None
     needle = surface.lower()
-    for ent in entities:
-        if ent.text.lower() == needle:
-            return ent
+    exact_text = [ent for ent in entities if ent.text.lower() == needle]
+    if len(exact_text) == 1:
+        return exact_text[0]
+    if start is not None and exact_text:
+        return min(exact_text, key=lambda ent: abs(ent.start_char - start))
+    if exact_text:
+        return exact_text[-1]
     for ent in entities:
         if needle in ent.text.lower() or ent.text.lower() in needle:
             return ent

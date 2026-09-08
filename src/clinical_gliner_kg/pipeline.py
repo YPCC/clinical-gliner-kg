@@ -13,7 +13,6 @@ from clinical_gliner_kg.graph.emitter import GraphEmitter
 from clinical_gliner_kg.models import (
     ClinicalKnowledgeGraph,
     ProvenanceMetadata,
-    ValidationStatus,
 )
 from clinical_gliner_kg.settings import PipelineSettings, load_settings
 
@@ -100,11 +99,9 @@ class ClinicalSemanticExtractionPipeline:
         entities, relations = self.extractor.extract(text)
         text_out, entities, _findings = self.phi_gate.apply(text, entities)
         entities = [self.ontology.link_entity(ent) for ent in entities]
-        for ent in entities:
-            if ent.validation_status == ValidationStatus.CANDIDATE:
-                ent.validation_status = ValidationStatus.VALIDATED
         entity_map = {ent.id: ent for ent in entities}
         validation = [self.ontology.validate_relation(rel, entity_map) for rel in relations]
+        llm_ready = self.adjudicator.llm_ready
         escalation = any(
             self.adjudicator.should_escalate(rel.confidence, is_valid)
             for rel, (is_valid, _) in zip(relations, validation)
@@ -120,6 +117,7 @@ class ClinicalSemanticExtractionPipeline:
                 pipeline_version=self.pipeline_version,
                 extraction_backend=getattr(self.extractor, "name", "unknown"),
                 escalation_used=escalation,
+                llm_invoked=escalation and llm_ready,
             ),
         )
         kg.cypher_queries = self.emitter.emit_cypher(kg)

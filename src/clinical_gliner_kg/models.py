@@ -10,11 +10,22 @@ from pydantic import BaseModel, Field
 
 
 class ValidationStatus(str, Enum):
-    VALIDATED = "VALIDATED"
-    ESCALATED_TO_LLM = "ESCALATED_TO_LLM"
-    ADJUDICATED = "ADJUDICATED"
-    REJECTED = "REJECTED"
+    """Do not collapse extraction, linking, schema, and LLM into one bit.
+
+    Entity path: CANDIDATE → LINKED | UNLINKED
+    Relation path: CANDIDATE → VALIDATED | REJECTED | NEEDS_REVIEW | LLM_*
+    """
+
     CANDIDATE = "CANDIDATE"
+    LINKED = "LINKED"
+    UNLINKED = "UNLINKED"
+    VALIDATED = "VALIDATED"
+    REJECTED = "REJECTED"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    ESCALATED_TO_LLM = "ESCALATED_TO_LLM"
+    LLM_VALIDATED = "LLM_VALIDATED"
+    LLM_REJECTED = "LLM_REJECTED"
+    ADJUDICATED = "ADJUDICATED"  # legacy; new code writes LLM_* or NEEDS_REVIEW
 
 
 class TerminologyLink(BaseModel):
@@ -36,6 +47,7 @@ class ClinicalEntity(BaseModel):
     source_model: str = "heuristic"
     terminology: TerminologyLink | None = None
     validation_status: ValidationStatus = ValidationStatus.CANDIDATE
+    linking_confidence: float = 0.0
 
 
 class ClinicalRelation(BaseModel):
@@ -46,6 +58,11 @@ class ClinicalRelation(BaseModel):
     source_model: str = "heuristic"
     validation_status: ValidationStatus = ValidationStatus.CANDIDATE
     validation_comment: str | None = None
+    subject_start: int | None = None
+    subject_end: int | None = None
+    object_start: int | None = None
+    object_end: int | None = None
+    adjudication_model: str | None = None
 
 
 class ProvenanceMetadata(BaseModel):
@@ -54,6 +71,7 @@ class ProvenanceMetadata(BaseModel):
     pipeline_version: str = "0.1.0"
     extraction_backend: str = "heuristic"
     escalation_used: bool = False
+    llm_invoked: bool = False
 
 
 class ClinicalKnowledgeGraph(BaseModel):

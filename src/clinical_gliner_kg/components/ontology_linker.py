@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from clinical_gliner_kg.components.oak_grounder import OaklibGrounder
-from clinical_gliner_kg.models import ClinicalEntity, ClinicalRelation, TerminologyLink
+from clinical_gliner_kg.models import ClinicalEntity, ClinicalRelation, TerminologyLink, ValidationStatus
 
 DEFAULT_RULES = {
     "allowed_relations": {
@@ -70,20 +70,33 @@ class OntologyValidationEngine:
         return fallback
 
     def link_entity(self, entity: ClinicalEntity) -> ClinicalEntity:
+        if entity.is_phi:
+            return entity
         key = entity.text.strip().lower()
         if key in self.catalog:
             entity.terminology = self.catalog[key]
             if entity.terminology and not entity.terminology.method:
                 entity.terminology.method = "catalog"
+            entity.linking_confidence = float(entity.terminology.match_score or 1.0)
+            entity.validation_status = ValidationStatus.LINKED
             return entity
         for name, link in self.catalog.items():
             if name in key or key in name:
                 entity.terminology = link.model_copy() if hasattr(link, "model_copy") else link
                 if entity.terminology and not entity.terminology.method:
                     entity.terminology.method = "catalog-partial"
+                entity.linking_confidence = min(0.85, float(getattr(entity.terminology, "match_score", 0.7) or 0.7))
+                entity.validation_status = ValidationStatus.LINKED
                 return entity
         if self.oak.enabled():
-            return self.oak.ground(entity)
+            grounded = self.oak.ground(entity)
+            if grounded.terminology:
+                grounded.linking_confidence = float(grounded.terminology.match_score or 0.7)
+                grounded.validation_status = ValidationStatus.LINKED
+                return grounded
+            grounded.validation_status = ValidationStatus.UNLINKED
+            return grounded
+        entity.validation_status = ValidationStatus.UNLINKED
         return entity
 
     def validate_relation(

@@ -122,6 +122,10 @@ class LLMAdjudicator:
     def should_escalate(self, confidence: float, structurally_valid: bool) -> bool:
         return confidence < self.threshold or not structurally_valid
 
+    @property
+    def llm_ready(self) -> bool:
+        return self._chat is not None or self._vertex is not None or self._nlp is not None
+
     def adjudicate_relations(
         self,
         relations: list[ClinicalRelation],
@@ -130,22 +134,30 @@ class LLMAdjudicator:
     ) -> list[ClinicalRelation]:
         out: list[ClinicalRelation] = []
         for rel, (is_valid, comment) in zip(relations, validation_results):
+            original_conf = rel.confidence
+            forbidden = (not is_valid) and comment.startswith("Ontology violation")
+            if forbidden:
+                rel.validation_status = ValidationStatus.REJECTED
+                rel.validation_comment = comment
+                rel.confidence = original_conf
+                out.append(rel)
+                continue
             if is_valid and rel.confidence >= self.threshold:
                 rel.validation_status = ValidationStatus.VALIDATED
                 rel.validation_comment = comment
                 out.append(rel)
                 continue
             rel.validation_status = ValidationStatus.ESCALATED_TO_LLM
-            out.append(self._arbitrate(rel, entity_map, comment))
+            out.append(self._arbitrate(rel, entity_map, comment, original_conf))
         return out
 
     def _backend_note(self) -> str:
         if self._chat is not None:
-            return f"{self.provider}:{self._chat['model']} available; "
+            return f"{self.provider}:{self._chat['model']}; "
         if self._nlp is not None:
-            return f"{self.provider}/spaCy-LLM available; "
+            return f"{self.provider}/spaCy-LLM; "
         if self._vertex is not None:
-            return f"vertex:{self.vertex_model} via ADC available; "
+            return f"vertex:{self.vertex_model} via ADC; "
         return ""
 
     def _arbitrate(
@@ -153,32 +165,29 @@ class LLMAdjudicator:
         rel: ClinicalRelation,
         entity_map: dict[str, ClinicalEntity],
         reason: str,
+        original_conf: float,
     ) -> ClinicalRelation:
-        backend_note = self._backend_note()
+        rel.confidence = original_conf
+        llm_ready = self._chat is not None or self._vertex is not None or self._nlp is not None
+        if not llm_ready:
+            rel.validation_status = ValidationStatus.NEEDS_REVIEW
+            rel.validation_comment = f"No LLM configured; queued for review ({reason})"
+            return rel
         verdict = self._llm_verdict(rel, entity_map, reason)
+        rel.adjudication_model = (self._chat or {}).get("model") if self._chat else (
+            self.vertex_model if self._vertex is not None else self.provider
+        )
+        note = self._backend_note()
         if verdict == "REJECT":
-            rel.validation_status = ValidationStatus.REJECTED
-            rel.validation_comment = f"{backend_note}LLM rejected ({reason})"
+            rel.validation_status = ValidationStatus.LLM_REJECTED
+            rel.validation_comment = f"{note}LLM rejected ({reason})"
             return rel
         if verdict == "ACCEPT":
-            rel.validation_status = ValidationStatus.ADJUDICATED
-            rel.validation_comment = f"{backend_note}LLM accepted ({reason})"
-            rel.confidence = max(rel.confidence, 0.82)
+            rel.validation_status = ValidationStatus.LLM_VALIDATED
+            rel.validation_comment = f"{note}LLM accepted ({reason})"
             return rel
-        subj = entity_map.get(rel.subject_id)
-        obj = entity_map.get(rel.object_id)
-        if subj and obj and subj.label == "Medication" and rel.relation == "HAS_ANATOMICAL_SITE":
-            rel.validation_status = ValidationStatus.REJECTED
-            rel.validation_comment = f"{backend_note}rejected clinically invalid link ({reason})"
-            return rel
-        if subj and obj and rel.relation == "INDICATES" and rel.confidence >= 0.65:
-            rel.validation_status = ValidationStatus.ADJUDICATED
-            rel.validation_comment = f"{backend_note}ambiguous causal link accepted with caution ({reason})"
-            rel.confidence = max(rel.confidence, 0.80)
-            return rel
-        rel.validation_status = ValidationStatus.ADJUDICATED
-        rel.validation_comment = f"{backend_note}resolved ambiguous assertion ({reason})"
-        rel.confidence = max(rel.confidence, 0.82)
+        rel.validation_status = ValidationStatus.NEEDS_REVIEW
+        rel.validation_comment = f"{note}LLM unavailable or inconclusive ({reason})"
         return rel
 
     def _llm_verdict(
