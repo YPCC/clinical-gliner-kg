@@ -146,7 +146,12 @@ class ClinicalSemanticExtractionPipeline:
                 graph_target=self.settings.graph.target,
             ),
         )
-        return self.emitter.populate(kg)
+        kg = self.emitter.populate(kg)
+        if self.settings.report.cinex:
+            from clinical_gliner_kg.report.cinex import build_cinex_report
+
+            kg.cinex = build_cinex_report(kg, self.settings)
+        return kg
 
     def process_envelope(self, envelope: EventEnvelope) -> ClinicalKnowledgeGraph:
         kg = self.process_document(envelope.payload, document_id=envelope.document_id)

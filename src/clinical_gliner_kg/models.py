@@ -127,6 +127,7 @@ class ClinicalKnowledgeGraph(BaseModel):
     turtle: str = ""
     rdfxml: str = ""
     sparql: dict[str, list[dict[str, str]]] = Field(default_factory=dict)
+    cinex: dict[str, Any] = Field(default_factory=dict)
 
 
 def assertion_key(document_id: str, *parts: Any) -> str:

@@ -18,6 +18,8 @@ PHI_LABELS = {
     "ADDRESS",
     "EMAIL",
     "ACCOUNT",
+    "INTERNAL_ID",
+    "CONTRACT_ID",
     "LOCATION",
 }
 
@@ -55,6 +57,8 @@ class PHIPolicyGate:
         ("MRN", r"\b(?:MRN|Medical Record(?: Number)?)\s*[:#]?\s*[A-Z0-9-]{4,}\b"),
         ("DATE_OF_BIRTH", r"\b(?:DOB|Date of Birth)\s*[:#]?\s*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"),
         ("ACCOUNT", r"\b(?:Acct|Account)\s*[:#]?\s*\d{4,}\b"),
+        ("INTERNAL_ID", r"\bINC-\d+\b"),
+        ("CONTRACT_ID", r"\bCNT-[A-Z0-9-]+\b"),
     ]
 
     def __init__(

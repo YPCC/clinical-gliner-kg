@@ -1,0 +1,57 @@
+# CINEX — Clinical Information Extraction reporting guideline
+# https://www.cinex-guideline.org/
+# Reichenpfader et al. JAMIA 2026;ocag136. 29 items, five dimensions.
+# Titles follow the published IM/A/D/AN/O numbering. Auto-fill is a study
+# report for *this* repository, not a claim that every item is complete.
+
+guideline: CINEX
+url: https://www.cinex-guideline.org/
+citation: >-
+  Reichenpfader D, Zaghir J, Cécilia-Joseph E, et al. The consensus-based
+  CINEX guideline for reporting clinical information extraction studies.
+  J Am Med Inform Assoc 2026; ocag136.
+dimensions:
+  information_model:
+    id: IM
+    items:
+      - {id: IM1, title: "Information need and intended use"}
+      - {id: IM2, title: "Entity / concept types extracted"}
+      - {id: IM3, title: "Relation, event, and attribute types"}
+      - {id: IM4, title: "Terminologies and coding systems"}
+      - {id: IM5, title: "Granularity (mention vs concept vs assertion)"}
+  architecture:
+    id: A
+    items:
+      - {id: A1, title: "Pipeline / system overview"}
+      - {id: A2, title: "Models, versions, and backends"}
+      - {id: A3, title: "Pre-processing, post-processing, and gates"}
+      - {id: A4, title: "Human or LLM-in-the-loop"}
+      - {id: A5, title: "Runtime constraints (local vs API, hardware)"}
+  data:
+    id: D
+    items:
+      - {id: D1, title: "Data source and clinical setting"}
+      - {id: D2, title: "Language and document type"}
+      - {id: D3, title: "Cohort / inclusion"}
+      - {id: D4, title: "Corpus size"}
+      - {id: D5, title: "Train / development / test splits"}
+      - {id: D6, title: "De-identification and PHI/PII/BII handling"}
+      - {id: D7, title: "Access, DUA, and redistribution"}
+      - {id: D8, title: "Temporal coverage"}
+      - {id: D9, title: "Bias, representativeness, and missingness"}
+  annotation:
+    id: AN
+    items:
+      - {id: AN1, title: "Annotation guidelines"}
+      - {id: AN2, title: "Annotator background"}
+      - {id: AN3, title: "Inter-annotator agreement"}
+      - {id: AN4, title: "Adjudication process"}
+      - {id: AN5, title: "Gold-standard availability"}
+  outcome:
+    id: O
+    items:
+      - {id: O1, title: "Metrics (P / R / F1, leak rate, cost, latency)"}
+      - {id: O2, title: "Error analysis"}
+      - {id: O3, title: "Compute, latency, and cost"}
+      - {id: O4, title: "External / literature validation"}
+      - {id: O5, title: "Limitations, ethics, and intended non-use"}

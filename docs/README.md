@@ -15,7 +15,8 @@ Thesis (what the code is becoming):
 | [Architecture](architecture.md) | Cascade stages |
 | [C4 diagrams](c4/README.md) | Context, container, system |
 | [oaklib grounding](oaklib-grounding.md) | Local OBO / SQLite vs OLS/BioPortal |
-| [Evaluation](evaluation.md) | NCBI / BC5CDR spike, cost model |
+| [CINEX report](cinex.md) | 29-item study JSON (https://www.cinex-guideline.org/) |
+| [Evaluation](evaluation.md) | NCBI / BC5CDR; **PII/BII leak rate**, P/R/F1 |
 | [Data policy](data-policy.md) | Open corpora vs DUA |
 | [Bibliography](bibliography.md) | Papers, software, ontologies |
 | [Infographics](infographics.md) | Cascade + cost visuals |

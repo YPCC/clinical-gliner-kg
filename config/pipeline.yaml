@@ -155,3 +155,12 @@ graph:
     base_iri: https://ypcc.dev/clinical-gliner-kg/
     include_assertions: true     # n-ary clin:Assertion + PROV on every edge
   store_path: outputs/kg/assertions.jsonl
+
+# ---------------------------------------------------------------------------
+# Study report (CINEX is a checklist JSON, not a graph dialect)
+# ---------------------------------------------------------------------------
+# https://www.cinex-guideline.org/  — 29 items IM/A/D/AN/O
+# CINEX=1 or --format cinex
+report:
+  cinex: false
+  cinex_items: config/cinex_items.yaml

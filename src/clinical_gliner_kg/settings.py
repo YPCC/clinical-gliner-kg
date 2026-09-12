@@ -205,6 +205,13 @@ class GCPSettings(BaseModel):
     quota_project: str = ""
 
 
+class ReportSettings(BaseModel):
+    """Study-level exports. cinex = CINEX 29-item JSON (not a graph dialect)."""
+
+    cinex: bool = False
+    cinex_items: str = "config/cinex_items.yaml"
+
+
 class PHISettings(BaseModel):
     action: str = "tag"
     enable_gliner_pii: bool = False
@@ -286,6 +293,7 @@ class PipelineSettings(BaseModel):
     gcp: GCPSettings = Field(default_factory=GCPSettings)
     phi: PHISettings = Field(default_factory=PHISettings)
     graph: GraphSettings = Field(default_factory=GraphSettings)
+    report: ReportSettings = Field(default_factory=ReportSettings)
 
     def oak_selectors(self) -> list[str]:
         if self.oaklib.mode == "ols":
@@ -357,6 +365,7 @@ def _overlay_env(raw: dict[str, Any]) -> dict[str, Any]:
     gcp = raw.setdefault("gcp", {})
     phi = raw.setdefault("phi", {})
     graph = raw.setdefault("graph", {})
+    report = raw.setdefault("report", {})
 
     if backend := _env("CLINICAL_GLINER_BACKEND"):
         raw["backend"] = backend
@@ -400,6 +409,8 @@ def _overlay_env(raw: dict[str, Any]) -> dict[str, Any]:
         graph["target"] = target
     if store := _env("GRAPH_STORE"):
         graph["store_path"] = store
+    if os.getenv("CINEX") is not None:
+        report["cinex"] = _env_bool("CINEX", False)
     return raw
 
 

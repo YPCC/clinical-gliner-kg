@@ -10,7 +10,7 @@ from rich.table import Table
 
 from clinical_gliner_kg.components.phi_gate import PHIPolicyGate
 from clinical_gliner_kg.data import load_synthetic_phi_notes
-from clinical_gliner_kg.eval.metrics import normalize
+from clinical_gliner_kg.eval.leakage import aggregate, score_case
 
 console = Console()
 
@@ -28,43 +28,41 @@ def main() -> None:
     table.add_column("Doc")
     table.add_column("Gold PHI")
     table.add_column("Detected")
-    table.add_column("Recall")
-    table.add_column("Extra detections")
+    table.add_column("P")
+    table.add_column("R")
+    table.add_column("F1")
+    table.add_column("Leak")
 
-    hits = 0
-    gold_total = 0
-    pred_total = 0
+    cases = []
     for note in notes:
-        findings = gate.detect(note["text"])
-        gold = note.get("phi", [])
-        gold_norms = {normalize(item["text"]) for item in gold}
-        pred_norms = {normalize(item.text) for item in findings}
-        # Partial match: gold span contained in a detection or vice versa.
-        matched = set()
-        for g in gold_norms:
-            for p in pred_norms:
-                if g in p or p in g:
-                    matched.add(g)
-                    break
-        rec = len(matched) / len(gold_norms) if gold_norms else 1.0
-        extra = sorted(p for p in pred_norms if not any(g in p or p in g for g in gold_norms))
-        hits += len(matched)
-        gold_total += len(gold_norms)
-        pred_total += len(pred_norms)
+        out_text, _ents, findings = gate.apply(note["text"], [])
+        scored = score_case(
+            gold=note.get("phi") or [],
+            pred_spans=[item.text for item in findings],
+            original_text=note["text"],
+            output_text=out_text,
+            action=args.action,
+            leakage_type=note.get("leakage_type", "direct_disclosure"),
+        )
+        cases.append(scored)
         table.add_row(
             note["id"],
-            str(len(gold_norms)),
-            str(len(pred_norms)),
-            f"{rec:.0%}",
-            ", ".join(extra) or "—",
+            str(scored["n_gold"]),
+            str(scored["n_pred"]),
+            f"{scored['precision']:.2f}",
+            f"{scored['recall']:.2f}",
+            f"{scored['f1']:.2f}",
+            f"{scored['leak_rate']:.0%}",
         )
     console.print(table)
-    overall = hits / gold_total if gold_total else 1.0
+    summary = aggregate(cases)
     console.print(
-        f"Overall span-recall {overall:.0%}  "
-        f"({hits}/{gold_total} gold spans)  predictions={pred_total}  "
+        f"P={summary['precision']:.3f}  R={summary['recall']:.3f}  F1={summary['f1']:.3f}  "
+        f"leak_rate={summary['leak_rate']:.3f}  over_redaction={summary['over_redaction']:.3f}  "
+        f"deepteam_pass_rate={summary['deepteam_pass_rate']:.3f}  "
         f"backend={'regex+gliner-pii' if args.gliner_pii else 'regex'}"
     )
+    console.print("Full PII/BII + DeepTeam types: python examples/run_pii_leakage_benchmark.py --action mask")
     console.print(
         "For DUA corpora (n2c2 2006/2014 de-id, MIMIC) download from the official portal "
         "and keep files outside git. Catalog: https://github.com/YPCC/medical-data"

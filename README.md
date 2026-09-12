@@ -8,7 +8,7 @@ Cascaded clinical extraction plane:
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Docs:** [status / next](docs/next-steps.md) · [overview](docs/overview.md) · [configuration](docs/configuration.md) · [C4](docs/c4/README.md) · [architecture](docs/architecture.md) · [graph LPG/RDFS](docs/graph.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md)
+**Docs:** [status / next](docs/next-steps.md) · [overview](docs/overview.md) · [configuration](docs/configuration.md) · [CINEX](docs/cinex.md) · [C4](docs/c4/README.md) · [architecture](docs/architecture.md) · [graph LPG/RDFS](docs/graph.md) · [oaklib (local, no API)](docs/oaklib-grounding.md) · [evaluation](docs/evaluation.md) · [bibliography](docs/bibliography.md)
 
 ---
 
@@ -259,6 +259,8 @@ Backend selection (`--backend` or `CLINICAL_GLINER_BACKEND`):
 python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic
 python examples/run_pipeline.py --config config/pipeline.yaml --backend heuristic --all-notes
 python examples/run_phi_benchmark.py
+python examples/run_pii_leakage_benchmark.py --action mask --cinex
+clinical-gliner --format cinex --backend heuristic
 python examples/run_kg_demo.py --config config/pipeline.yaml --format both --outdir outputs/kg
 python examples/run_stream_jsonl.py --store outputs/kg/assertions.jsonl
 python examples/run_architecture_spike.py --config config/pipeline.yaml --backend heuristic
